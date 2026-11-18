@@ -845,7 +845,7 @@ def data_version():
     """Changes whenever map data changes: every 20 s while the national map builds, and when the water inventory is written."""
     status = national_status()
     v = f"n{int(time.time() // 20)}" if status.get('state') == 'building' else f"n{status.get('features', 0)}"
-    for f in (WATERDB, WATERDB.with_name(WATERDB.name + '-wal'), CROPDB, TERRAINDB, BLDGDB, BLDGDB.with_name(BLDGDB.name + '-wal')):
+    for f in (MAPDB, WATERDB, WATERDB.with_name(WATERDB.name + '-wal'), CROPDB, TERRAINDB, BLDGDB, BLDGDB.with_name(BLDGDB.name + '-wal')):
         try:
             v += f".{int(f.stat().st_mtime) // 60}"
         except OSError:
@@ -887,9 +887,10 @@ def _map_tile(z, x, y, version):
         s = math.sin(math.radians(max(-85, min(85, lat))))
         py = ((0.5 - math.log((1 + s) / (1 - s)) / (4 * math.pi)) * n - y) * EXT
         return px, py
+    # maxz lets one coast be stored at several levels of detail (tools/build_map_es.py); other rows keep maxz 30
     rows = db.execute('SELECT f.layer,f.cls,f.name,f.geom FROM feat_idx i JOIN feat f ON f.id=i.id '
-                      'WHERE i.maxx>=? AND i.minx<=? AND i.maxy>=? AND i.miny<=? AND i.minz<=? ORDER BY f.id',
-                      (lon0 - pad, lon1 + pad, lat0 - pad, lat1 + pad, z)).fetchall()
+                      'WHERE i.maxx>=? AND i.minx<=? AND i.maxy>=? AND i.miny<=? AND i.minz<=? AND i.maxz>=? ORDER BY f.id',
+                      (lon0 - pad, lon1 + pad, lat0 - pad, lat1 + pad, z, z)).fetchall()
     national = national_mapdb()
     if national is not None and z >= 11:
         c = SOCAL_CELL
@@ -917,7 +918,7 @@ def _map_tile(z, x, y, version):
         geo = []
         for p in parts:
             pts = [proj(lo, la) for lo, la in p]
-            if polygon and len(pts) > 200:
+            if polygon and (len(pts) > 200 or layer == 'ocean'):  # a sea rectangle spans a whole region
                 pts = clip_ring(pts, -16, -16, EXT + 16, EXT + 16)
             q, last = [], None
             for px, py in pts:
@@ -1055,6 +1056,7 @@ HELP = {'hospital': 'Hospital', 'clinic': 'Clinic', 'doctors': 'Doctor', 'pharma
         'dentist': 'Dentist', 'fire_station': 'Fire station', 'police': 'Police', 'drinking_water': 'Drinking water tap',
         'fountain': 'Fountain (not necessarily drinkable)', 'water_tower': 'Water tower', 'water_works': 'Water works',
         'spring': 'Spring (untested)', 'toilet': 'Public toilet', 'shelter': 'Shelter (structure)',
+        'alpine_hut': 'Mountain hut / refuge',
         'community_centre': 'Community centre', 'town_hall': 'Town hall', 'school': 'School', 'library': 'Library',
         'supermarket': 'Supermarket', 'convenience': 'Convenience store', 'doityourself': 'Hardware / DIY store',
         'hardware': 'Hardware store', 'garden_centre': 'Garden centre', 'post_office': 'Post office',
@@ -1162,14 +1164,32 @@ def socal_classes():
     return frozenset(r[0] for r in db.execute('SELECT DISTINCT cls FROM poi')) if db else frozenset()
 
 
+@functools.lru_cache(maxsize=1)
+def detail_box():
+    """(west, south, east, north) of the detailed map's own points: Spain in this fork, Southern California upstream."""
+    db = mapdb()
+    if db is None:
+        return None
+    try:
+        box = db.execute('SELECT MIN(lon),MIN(lat),MAX(lon),MAX(lat) FROM poi').fetchone()
+    except sqlite3.Error:
+        return None
+    return tuple(box) if box and box[0] is not None else None
+
+
+def _in_detail(west, south, east, north):
+    box = detail_box()
+    return box is not None and east >= box[0] and west <= box[2] and north >= box[1] and south <= box[3]
+
+
 def _poi_sources(west, south, east, north):
     """(connection, skip-SoCal-duplicates) pairs for service points."""
     out = []
-    if mapdb() is not None and east >= -121.4 and west <= -114.1 and north >= 32.5 and south <= 35.9:
+    if mapdb() is not None and _in_detail(west, south, east, north):
         out.append((mapdb(), False))
     nat = national_mapdb()
     if nat is not None:
-        dedupe = east >= -121.4 and west <= -114.1 and north >= 32.5 and south <= 35.9 and mapdb() is not None
+        dedupe = _in_detail(west, south, east, north) and mapdb() is not None
         if dedupe and not getattr(_tls, 'socal_fn', False):
             nat.create_function('socal', 3, lambda cls, lo, la: 1 if cls in socal_classes() and in_socal(lo, la) else 0, deterministic=True)
             _tls.socal_fn = True
@@ -1402,14 +1422,19 @@ def water_places(q, limit=10, near=None):
 
 
 def places(q, limit=20, near=None):
-    if address_search.is_address_query(q):
-        return address_search.find_addresses(q, HERE / 'derived' / 'geo', limit=min(limit, 8), near=near)
+    found = []
+    spanish = address_search.is_es_address_query(q)  # "Calle de Alcalá 45, 28014 Madrid": the number comes after the street
+    if spanish or address_search.is_address_query(q):
+        found = address_search.find_addresses(q, HERE / 'derived' / 'geo', limit=min(limit, 8), near=near)
+        if not spanish:
+            return found
+    # A Spanish-looking address may also be a place ("Hospital 12 de Octubre"): its addresses come first, then places.
     if not PLACEDB.exists():
-        return []
+        return found
     db = sqlite3.connect(ro_uri(PLACEDB), uri=True)
     words = re.findall(r'\w+', q)
     if not words:
-        return []
+        return found
     rows = []
     full = False
     for ws in word_sets(words):
@@ -1423,8 +1448,8 @@ def places(q, limit=20, near=None):
         if len(ws) == len(words):
             full = bool(rows)
     rows = list(dict.fromkeys(rows))
-    def norm(t):
-        return ' '.join(re.sub(r'\bsaint\b', 'st', re.sub(r'[^\w ]+', ' ', t.lower())).split())
+    def norm(t):  # accents folded, so "alcala de henares" is an exact match for "Alcalá de Henares"
+        return ' '.join(re.sub(r'\bsaint\b', 'st', re.sub(r'[^\w ]+', ' ', address_search.es_fold(t))).split())
     ql = norm(q)
     nat = national_mapdb()
     size = {}
@@ -1456,7 +1481,7 @@ def places(q, limit=20, near=None):
     water = water_places(q, near=near)
     if water:  # a query that names a water word puts lakes and dams first; otherwise towns lead
         out = (water + out) if set(w.lower() for w in re.findall(r'\w+', q)) & WATER_WORDS else (out[:8] + water + out[8:])
-    return out[:limit + len(water)]
+    return found + out[:limit + len(water)]
 
 
 _cov = {'at': 0}
@@ -1564,6 +1589,20 @@ def map_info():
         p = LIB / rel
         if p.exists() and label:
             geo.append({'label': label, 'status': status, 'path': rel, 'bytes': p.stat().st_size})
+    spain = []  # what tools/build_map_es.py, build_addresses_es.py and build_places_es.py added
+    if meta.get('regions'):
+        spain.append({'label': 'Spain: streets, buildings, water, places and help points (OpenStreetMap, via Geofabrik)',
+                      'status': f"Shown on this map · {len(meta['regions'].split(','))} of 19 communities and cities · mapped by {meta.get('data_as_of', '?')}"})
+    for path, label in ((HERE / 'derived/geo/addresses/ES.sqlite', 'Spanish street addresses (Overture Maps: scne.es via OpenAddresses, CC BY 4.0)'),
+                        (PLACEDB, 'Spanish place names (GeoNames, OpenStreetMap) and postcode centres (from the addresses)')):
+        try:
+            m = dict(sqlite3.connect(ro_uri(path), uri=True).execute('SELECT key,value FROM meta').fetchall()) if path.exists() else {}
+        except sqlite3.Error:
+            m = {}
+        n = m.get('count') or m.get('spain')
+        if n:
+            spain.append({'label': label, 'status': f'{int(n):,} records · used by "Find"'})
+    geo[0:0] = spain
     geo.append({'label': 'US place names (USGS GNIS) and Census 2025 ZIP-code and county centres', 'status': 'Used by "Find a place", together with named lakes, reservoirs and dams', 'path': 'geography/geographic-names/'})
     if WATERDB.exists():
         try:
@@ -1577,7 +1616,12 @@ def map_info():
         except (sqlite3.Error, ValueError):
             pass
     if TERRAINDB.exists():
-        geo.append({'label': 'Elevation: shaded relief, contour lines, spot heights and 3D (USGS 3DEP, 30 m)', 'status': 'Whole US and territories'})
+        try:
+            dem_es = dict(sqlite3.connect(ro_uri(TERRAINDB), uri=True).execute('SELECT key,value FROM meta').fetchall()).get('source_es')
+        except sqlite3.Error:
+            dem_es = None
+        geo.append({'label': 'Elevation: shaded relief, contour lines, spot heights and 3D (USGS 3DEP, 30 m' + (f'; Spain: {dem_es}' if dem_es else '') + ')',
+                    'status': 'Whole US and territories' + (', and Spain' if dem_es else '')})
     if CROPDB.exists():
         try:
             c = json.loads(dict(sqlite3.connect(ro_uri(CROPDB), uri=True).execute('SELECT key,value FROM meta').fetchall()).get('built', '{}'))
@@ -1627,22 +1671,29 @@ def map_info():
     extra = {'aerial': has_aerial()}
     if pack:
         extra.update(map_contents())
-        geo = pack_datasets(extra)
+        geo = pack_datasets(extra, spain)
     return {**extra, 'meta': meta, 'datasets': geo, 'national': {k: v for k, v in national_status().items() if k not in ('source', 'database')}, 'version': data_version(), 'aerial_detail': detail, 'aerial_rev': rev, 'terrain_circle': tdetail}
 
 
-def pack_datasets(have):
+def pack_datasets(have, spain=()):
     """The panel beside a pack's map says only what this pack's map files hold."""
-    area = 'the area this map details' if have['bounds'] else 'the whole US'
+    area = 'Spain' if spain else 'the area this map details' if have['bounds'] else 'the whole US'
     out = [{'label': 'Main roads, towns and water for the whole US (OpenStreetMap, USGS)', 'status': 'Shown at every zoom level'}]
-    if have['detail']:
+    if spain:
+        out += spain
+    elif have['detail']:
         out.append({'label': f'Streets, places and help points (OpenStreetMap) for {area}', 'status': 'Street detail stops at the edge of this area.' if have['bounds'] else 'Shown when you zoom in'})
     else:
         out.append({'label': 'No street detail or help points', 'status': 'This download has only the base map. Hospitals, water taps and side streets are not in it.'})
     if PLACEDB.exists():
-        out.append({'label': 'Place names (USGS GNIS, Census 2025 ZIP codes and counties)', 'status': 'Used by "Find a town, ZIP or place"'})
+        out.append({'label': ('US place names' if spain else 'Place names') + ' (USGS GNIS, Census 2025 ZIP codes and counties)', 'status': 'Used by "Find a town, ZIP or place"'})
     if TERRAINDB.exists():
-        out.append({'label': 'Elevation (USGS 3DEP)', 'status': 'Shaded relief. Contour lines only where this map has fine detail.' if have['detail'] else 'Shaded relief at broad zoom levels'})
+        try:
+            dem_es = dict(sqlite3.connect(ro_uri(TERRAINDB), uri=True).execute('SELECT key,value FROM meta').fetchall()).get('source_es')
+        except sqlite3.Error:
+            dem_es = None
+        out.append({'label': 'Elevation (USGS 3DEP' + (f'; Spain: {dem_es}' if dem_es else '') + ')',
+                    'status': 'Shaded relief and contour lines in Spain' if dem_es else 'Shaded relief. Contour lines only where this map has fine detail.' if have['detail'] else 'Shaded relief at broad zoom levels'})
     if BLDGDB.exists():
         out.append({'label': 'Building outlines (Microsoft Global ML Building Footprints, ODbL; OpenStreetMap)', 'status': f'For {area}, shown from street level zoom'})
     if CROPDB.exists():

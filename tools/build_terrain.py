@@ -5,6 +5,11 @@
 Source: USGS 3DEP 1 arc-second (~30 m) GeoTIFFs in library-data/geography/usgs/Elevation/1/TIFF/current.
 Tiles are 256 px web-mercator PNGs, zoom 5-12, in the "terrain-RGB" encoding
 (height_m = -10000 + (R*65536 + G*256 + B) * 0.1). Open ocean (no source data) has no tile.
+
+Spain (Lastbook ES): --layout copernicus --src <folder of Copernicus DEM GLO-30 1° COGs> --out <data>/derived/geo/terrain.sqlite
+adds tiles to an existing file and records the source under meta key 'source_es' (--meta-key). GLO-30 is a surface
+model (trees and roofs included), licensed by ESA and the EU with credit "Copernicus DEM © DLR e.V. 2010-2014 and
+© Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA".
 """
 import argparse, math, os, re, sqlite3, struct, sys, time, zlib
 from functools import lru_cache
@@ -24,9 +29,19 @@ SPAN = 2 ** (MAXZ - SUPERZ)          # z12 tiles per z8 supertile edge (16)
 PX = 256 * SPAN                      # 4096 px
 
 
+LAYOUT = 'usgs'
+
+
 def cells():
     """(top latitude, left longitude) -> GeoTIFF path for every 1° source cell."""
     out = {}
+    if LAYOUT == 'copernicus':  # Copernicus_DSM_COG_10_N40_00_W004_00_DEM.tif covers 40-41° N, 4-3° W
+        for tif in SRC.glob('*.tif'):
+            m = re.match(r'Copernicus_DSM_COG_\d+_([NS])(\d+)_00_([EW])(\d+)_00_DEM', tif.name)
+            if m:
+                bottom = int(m[2]) * (1 if m[1] == 'N' else -1)
+                out[(bottom + 1, int(m[4]) * (1 if m[3] == 'E' else -1))] = tif
+        return out
     for d in SRC.iterdir():
         m = re.fullmatch(r'([ns])(\d+)([ew])(\d+)', d.name)
         if not m:
@@ -42,7 +57,7 @@ def cells():
 CELLS = None
 
 
-@lru_cache(maxsize=10)
+@lru_cache(maxsize=6)  # a supertile needs at most 4 cells; each 1° cell is ~50 MB in memory
 def dem(key):
     with tifffile.TiffFile(CELLS[key]) as tf:
         pg = tf.pages[0]
@@ -121,17 +136,29 @@ def supertile(args):
     return out, H
 
 
-def init():
-    global CELLS
+def init(src=None, layout=None):
+    global CELLS, SRC, LAYOUT
+    if src:
+        SRC = Path(src)
+    if layout:
+        LAYOUT = layout
     CELLS = cells()
 
 
 def main():
+    global OUT
     ap = argparse.ArgumentParser()
     ap.add_argument('--bbox', help='W,S,E,N limit (default: everything)')
     ap.add_argument('--workers', type=int, default=24)
+    ap.add_argument('--src', help='folder of 1° GeoTIFFs (default: the USGS folder in the library)')
+    ap.add_argument('--layout', default='usgs', choices=('usgs', 'copernicus'))
+    ap.add_argument('--out', help='terrain.sqlite to write or add to (default: derived/geo/terrain.sqlite here)')
+    ap.add_argument('--meta-key', default='source', help="meta key for the source label ('source_es' for Spain)")
+    ap.add_argument('--source-label', default='USGS 3DEP 1 arc-second DEM (library-data/geography/usgs/Elevation/1)')
     a = ap.parse_args()
-    init()
+    if a.out:
+        OUT = Path(a.out)
+    init(a.src, a.layout)
     keys = set()
     for top, left in CELLS:
         if a.bbox:
@@ -155,7 +182,7 @@ def main():
     todo = [k for k in keys if k not in finished]
     print(f'{len(finished)} supertiles already built, {len(todo)} to go', flush=True)
     t0, done, ntiles = time.time(), 0, 0
-    with ProcessPoolExecutor(a.workers, initializer=init) as pool:
+    with ProcessPoolExecutor(a.workers, initializer=init, initargs=(a.src, a.layout)) as pool:
         futs = [pool.submit(_job, k) for k in todo]
         for f in as_completed(futs):
             tiles, h8, key = f.result()  # a dead worker raises here instead of hanging
@@ -184,7 +211,7 @@ def main():
             db.execute('INSERT OR REPLACE INTO tile VALUES (?,?,?,?)', (z, x, y, png(h)))
         level = nxt
     db.execute('INSERT OR REPLACE INTO meta VALUES (?,?)', ('built', time.strftime('%Y-%m-%dT%H:%M:%S')))
-    db.execute('INSERT OR REPLACE INTO meta VALUES (?,?)', ('source', 'USGS 3DEP 1 arc-second DEM (library-data/geography/usgs/Elevation/1)'))
+    db.execute('INSERT OR REPLACE INTO meta VALUES (?,?)', (a.meta_key, a.source_label))
     db.commit()
     print(f'done: {done} supertiles, {ntiles:,} tiles in {time.time() - t0:.0f}s', flush=True)
 
