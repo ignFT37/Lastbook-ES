@@ -105,7 +105,9 @@ def catalog():
 
 
 TRUST = [  # (pattern on publisher+collection, label shown to people, ranking weight)
-    (r'World Health|WHO\b|ICRC|IFRC|Red Cross|Médecins|MSF|UNICEF|Sphere|St John Ambulance|CAWST', 'International health & humanitarian guidance', 1.5),
+    # Lastbook ES: Spanish public bodies first (upstream's bare 'MIT' would otherwise take MITECO for a textbook)
+    (r'Ministerio|MITECO|Protecci[óo] Civil|AEMET|Generalitat|Xunta|Gobierno de|Consejo de Seguridad Nuclear|Instituto Geogr[áa]fico|Ayuntamiento|SAMUR|Direcci[óo]n General', 'Government guidance', 1.4),
+    (r'World Health|WHO\b|ICRC|IFRC|Red Cross|Cruz Roja|Médecins|MSF|UNICEF|Sphere|St John Ambulance|CAWST', 'International health & humanitarian guidance', 1.5),
     (r'Hesperian|Where There Is No|Where Women|Book for Midwives|Community Guide to Environmental|Health Actions|Workers\' Guide', 'Hesperian community health guide', 1.45),
     (r'FEMA|Ready\.gov|CDC|Centers for Disease|EPA|Environmental Protection|NOAA|National Weather|USDA|Food Safety|National Park|USGS|Department|Agency|U\.S\.|US Army|Army|Navy|Census|NIOSH|OSHA|NASA|FAA|Cal OES|California|County of|City of', 'Government guidance', 1.4),
     (r'National Center for Home Food Preservation|Extension|University|UC |College|Agricultural|Food Hero|UWyo', 'University / extension service', 1.35),
@@ -298,6 +300,12 @@ SYN = {
     'rain': ['rainwater'], 'gas': ['natural gas', 'propane', 'gas leak'], 'leak': ['leaks', 'leaking'],
     'carbon': ['monoxide'], 'co': ['carbon monoxide'], 'mold': ['mould'], 'rats': ['rodents', 'rodent'], 'mosquito': ['mosquitoes'],
 }
+# Lastbook ES: a question in Spanish also looks for the English words, since most of the library is in English
+from engine import es_words  # noqa: E402
+STOP |= es_words.STOP
+for _w, _alts in es_words.SYN.items():
+    SYN.setdefault(_w, [])
+    SYN[_w] += [a for a in _alts if a not in SYN[_w]]
 CLINICAL = re.compile(r'surg|clinical|district hospital|essential drugs|tuberculosis|obstetric|cholera epidemic|measles epidemic|anaesth|war surgery', re.I)
 GENERAL = re.compile(r'first aid|emergency|basic|household|home|beginner|guide|handbook|where there is no', re.I)
 KIND_FILTERS = {'read': ('pdf', 'html', 'pptx'), 'video': ('video', 'transcript'), 'all': None}
@@ -417,6 +425,7 @@ def clean_snip(s):
 
 # ------------------------------------------------------------------ shelves ----
 SHELVES = [
+    ('spain', 'Spain: emergencies & civil protection', r'^spain'),   # Lastbook ES: first, so spain-* categories land here
     ('health', 'Health & first aid', r'medic|first-aid|care|health|dent|mental|obstet|midwi|clinic|surg'),
     ('water', 'Water & sanitation', r'water|rain|sanit|wash|hygien'),
     ('food', 'Food: growing, keeping & cooking', r'agri|food|seed|crop|garden(?!-power)|livestock|dairy|ferment|bee|farm|soil|grow|irrigat|oil-crop|grain'),

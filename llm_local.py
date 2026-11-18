@@ -21,11 +21,13 @@ from pathlib import Path
 
 from engine import paths
 
-FILE = 'gemma-4-26B-A4B-it-UD-Q4_K_M.gguf'
-SIZE = 16_947_541_728
-SHA256 = 'f2c28b3dc4776931ac6f879e11f203dec637ea0f14267a86ec8f6165f63f293f'
-NAME = 'Gemma 4 26B A4B (Unsloth 4-bit, UD-Q4_K_M)'
-SOURCE = 'unsloth/gemma-4-26B-A4B-it-GGUF, revision c099eb48e663fd284577b04978a94ffccb261841'
+# Lastbook ES: Gemma 4 E4B instead of 26B A4B, which needs about 19 GB of memory and does not fit a 16 GB laptop.
+# Upstream pins were: gemma-4-26B-A4B-it-UD-Q4_K_M.gguf, 16_947_541_728 bytes, sha256 f2c28b3d...f293f, revision c099eb48.
+FILE = 'gemma-4-E4B-it-UD-Q4_K_XL.gguf'
+SIZE = 5_126_306_944
+SHA256 = '3cf61de12daa015ee0f7b68e7b7c541405bf220e1e942bad8b47cab827d7df80'
+NAME = 'Gemma 4 E4B (Unsloth 4-bit, UD-Q4_K_XL)'
+SOURCE = 'unsloth/gemma-4-E4B-it-GGUF, revision bfc15c382204943c3a8fff0c750b94ae2364d7a3'
 CTX = 16384               # tokens the model holds: the system prompt, sources, the conversation and the answer
 RESERVE = 2.5 * 2**30     # memory left for the system and the rest of Lastbook beyond what llama.cpp measures for the model
 IDLE_STOP = int(os.environ.get('LASTBOOK_AI_IDLE_S') or 15 * 60)   # seconds without a question before the model is stopped, to give its memory back
@@ -39,6 +41,8 @@ def runner_path():
     here = [paths.APP / 'llm' / exe]                         # in the packaged app
     if not paths.FROZEN:
         here.append(paths.APP / 'derived' / 'llm' / {'win32': 'bin-win', 'darwin': 'bin-mac'}.get(sys.platform, 'bin-linux') / exe)
+        if os.environ.get('LASTBOOK_LLM_DIR'):   # Lastbook ES: a runner kept outside the source tree (run from source only)
+            here.insert(0, Path(os.environ['LASTBOOK_LLM_DIR']) / exe)
     return next((p for p in here if p.is_file()), None)
 
 
@@ -566,7 +570,9 @@ def render(msgs, tools):
         open_model = False
         i += 1
     if not open_model:
-        seg.append(['<|turn>model\n<|channel>thought\n<channel|>', True])
+        # Lastbook ES: E4B's own template opens the answer with a plain '<|turn>model\n' when thinking is off. Given the
+        # 26B's empty thought channel instead, E4B wrote its reasoning as answer text and closed it with '<channel|>'.
+        seg.append(['<|turn>model\n', True])
     return seg
 
 

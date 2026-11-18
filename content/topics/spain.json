@@ -1,0 +1,219 @@
+{
+ "id": "spain",
+ "mode": "now",
+ "title": "Emergencias en España (112)",
+ "short": "112 y otros teléfonos, avisos ES-Alert y AEMET, y las guías oficiales españolas",
+ "intro": "Lo que dicen las guías oficiales españolas para emergencias: a quién llamar, qué significan los avisos y qué recomiendan Protección Civil, AEMET, Sanidad y otros organismos ante inundaciones, incendios, calor, nevadas, apagones, terremotos o una emergencia nuclear. El 112 es el teléfono único de emergencias.",
+ "keywords": ["españa", "spain", "spanish", "112", "emergencia", "emergencias", "protección civil", "proteccion civil",
+  "es-alert", "alerta", "aviso", "aemet", "meteoalerta", "aviso rojo", "aviso naranja", "aviso amarillo", "dana",
+  "gota fría", "inundación", "inundacion", "riada", "lluvias", "tormenta", "garaje", "incendio", "incendio forestal",
+  "humo", "ola de calor", "calor", "golpe de calor", "nevada", "nieve", "frío", "ola de frío", "temporal", "viento",
+  "terremoto", "sismo", "tsunami", "maremoto", "volcán", "volcan", "ceniza", "la palma", "canarias", "nuclear",
+  "central nuclear", "radiación", "yodo", "apagón", "apagon", "corte de luz", "sin luz", "guardia civil",
+  "policía nacional", "bomberos", "toxicología", "intoxicación", "salvamento marítimo", "kit de emergencia",
+  "mochila de emergencia", "plan familiar", "72 horas", "primeros auxilios", "samur", "cruz roja"],
+ "choices": [
+  {
+   "id": "llamar",
+   "label": "Necesito ayuda: ¿a qué número llamo?",
+   "hint": "112, Guardia Civil, Policía, intoxicaciones, emergencias en el mar",
+   "read": [
+    {"doc": "es-telefonos-emergencia",
+     "label": "Teléfonos de emergencia en España",
+     "note": "El 112 y los demás números (062, 091, 092, 061, 016, 024, toxicología, Salvamento Marítimo), con su fuente oficial y dónde funciona cada uno."},
+    {"doc": "es-accidentes-cruzroja-2015", "page": 2,
+     "label": "Conducta PAS: proteger, avisar y socorrer",
+     "note": "El esquema de Cruz Roja para los primeros momentos tras un accidente: hacer seguro el entorno, avisar a emergencias y socorrer a la víctima."},
+    {"doc": "es-primeros-auxilios-samur", "page": 4,
+     "label": "Cómo actuar ante una emergencia",
+     "note": "SAMUR-Protección Civil: mantener la calma, protegerse y proteger al accidentado, comprobar que el lugar es seguro y esperar a los equipos de rescate si hace falta."}
+   ]
+  },
+  {
+   "id": "aviso",
+   "label": "Me ha llegado un aviso: ES-Alert o alerta de AEMET",
+   "hint": "Mensaje de alerta en el móvil, aviso amarillo, naranja o rojo",
+   "read": [
+    {"doc": "es-es-alert",
+     "label": "Qué es ES-Alert",
+     "note": "Página oficial de Protección Civil sobre ES-Alert, el sistema que envía avisos de emergencia a los móviles de una zona."},
+    {"doc": "es-meteoalerta-plan", "page": 8,
+     "label": "Qué significan los avisos amarillo, naranja y rojo",
+     "note": "AEMET describe el peligro de cada nivel de aviso y su recomendación, desde «esté atento» en el amarillo hasta las de los niveles más altos."},
+    {"doc": "es-fma-112cv", "page": 7,
+     "label": "Los niveles de aviso en una tabla",
+     "note": "Los tres niveles de aviso con su peligro, su impacto sobre la población y los bienes y la recomendación de cada uno."}
+   ]
+  },
+  {
+   "id": "inundacion",
+   "label": "Lluvias fuertes, DANA o inundación",
+   "hint": "Alerta por lluvias, agua en la calle, garajes y sótanos, coche",
+   "read": [
+    {"doc": "es-fma-112cv", "page": 29,
+     "label": "Cuando se declara la alerta por lluvias",
+     "note": "Qué hacer al activarse la alerta: informarse por canales oficiales, tener en cuenta cuándo empieza y acaba y compartir la información."},
+    {"doc": "es-fma-112cv", "page": 33,
+     "label": "Garajes, sótanos y ascensores",
+     "note": "Por qué no bajar a sótanos ni quedarse en zonas bajas, no intentar sacar el coche de un garaje subterráneo y evitar los ascensores."},
+    {"doc": "es-fma-112cv", "page": 34,
+     "label": "Evacuación, cauces y barrancos",
+     "note": "Las evacuaciones que organizan las autoridades y por qué alejarse de cauces, barrancos y torrentes aunque no llueva donde estás."},
+    {"doc": "es-fma-112cv", "page": 38,
+     "label": "Si vas en coche con lluvia o viento",
+     "note": "Parar en el arcén si no hay visibilidad, no aparcar en cauces secos ni junto a ríos y abandonar el vehículo si es necesario."}
+   ]
+  },
+  {
+   "id": "incendio",
+   "label": "Incendio forestal o humo cerca",
+   "hint": "Humo en casa, ceniza, mascarilla, después del incendio",
+   "read": [
+    {"doc": "es-incendios-sanidad", "page": 18,
+     "label": "Recomendaciones generales ante el humo",
+     "note": "Sanidad: mantener la calma, quedarse en interiores si es seguro sin ventilar con aire de fuera, beber agua y reducir los viajes."},
+    {"doc": "es-incendios-sanidad", "page": 19,
+     "label": "Proteger la casa del humo y protegerse fuera",
+     "note": "Cerrar puertas, ventanas y ventilaciones, mantener la casa fresca y, al aire libre con humo o ceniza, mascarilla FFP2 y gafas."},
+    {"doc": "es-incendios-sanidad", "page": 23,
+     "label": "Después del incendio",
+     "note": "Ventilar cuando las autoridades lo indiquen, evitar tocar o respirar la ceniza y limpiar la vivienda."}
+   ]
+  },
+  {
+   "id": "calor",
+   "label": "Ola de calor",
+   "hint": "Temperaturas muy altas, personas mayores, bebés, niños",
+   "read": [
+    {"doc": "es-calor-sanidad-2025", "page": 48,
+     "label": "Recomendaciones de Sanidad ante el calor",
+     "note": "Anexo del plan nacional: beber agua a menudo aunque no haya sed, evitar alcohol, cafeína y bebidas muy azucaradas y vigilar a los más vulnerables."},
+    {"doc": "es-fma-112cv", "page": 36,
+     "label": "Consejos ante olas de calor",
+     "note": "Vigilar a niños, mayores y personas sensibles, hacer comidas ligeras, beber mucha agua y exponerse al sol lo menos posible."}
+   ]
+  },
+  {
+   "id": "nieve",
+   "label": "Nevadas, frío intenso, viento o temporal",
+   "hint": "Nieve, hielo, ventisca, viento fuerte, temporal en la costa",
+   "read": [
+    {"doc": "es-fma-112cv", "page": 35,
+     "label": "Antes y durante el frío y las nevadas",
+     "note": "Prepararse si se vive en una zona que puede quedar aislada, informarse del estado de las carreteras y cómo abrigarse fuera."},
+    {"doc": "es-fma-112cv", "page": 36,
+     "label": "Personas sensibles al frío y ventisca",
+     "note": "Evitar que bebés, mayores y enfermos crónicos se expongan al frío, y no salir ni desplazarse con ventisca."},
+    {"doc": "es-fma-112cv", "page": 37,
+     "label": "Viento fuerte y temporal en el mar",
+     "note": "Alejarse de andamios, postes y torres eléctricas, avisar al 112 si caen, y no acercarse a paseos marítimos, espigones ni acantilados."}
+   ]
+  },
+  {
+   "id": "apagon",
+   "label": "Apagón o corte de luz",
+   "hint": "Sin electricidad, móvil sin batería, información fiable",
+   "read": [
+    {"doc": "es-fma-112cv", "page": 32,
+     "label": "Prepararse para los cortes de suministro",
+     "note": "Tener móvil, cargador y baterías externas, informarse solo por canales oficiales sin difundir bulos y acordar cómo comunicarse con la familia."},
+    {"doc": "es-apagon-consumo-2025",
+     "label": "Tus derechos como consumidor tras un apagón",
+     "note": "Guía de Consumo publicada tras el apagón del 28 de abril de 2025: reclamaciones y compensaciones. No es una guía de autoprotección."}
+   ]
+  },
+  {
+   "id": "terremoto",
+   "label": "Terremoto o tsunami",
+   "hint": "Temblor de tierra, el mar se retira, estás en la costa",
+   "read": [
+    {"doc": "es-terremoto-tsunami-ign", "page": 2,
+     "label": "Qué hacer antes y durante un terremoto",
+     "note": "Folleto del IGN: asegurar objetos que puedan caer, hacer simulacros en familia y cómo protegerse durante el temblor."},
+    {"doc": "es-terremoto-tsunami-ign", "page": 1,
+     "label": "Cuándo evacuar ante un tsunami",
+     "note": "Las señales para alejarse de la costa: aviso oficial, terremoto fuerte o largo cerca del mar, retirada rápida del agua o un rugido como de tren."}
+   ]
+  },
+  {
+   "id": "volcan",
+   "label": "Erupción volcánica o caída de ceniza",
+   "hint": "Canarias, ceniza volcánica, PEVOLCA",
+   "read": [
+    {"doc": "es-cenizas-canarias-2021", "page": 1,
+     "label": "Si cae ceniza volcánica",
+     "note": "Recomendaciones del Gobierno de Canarias durante la erupción de La Palma (2021) ante la caída de ceniza, en situación de alerta y de emergencia."}
+   ]
+  },
+  {
+   "id": "nuclear",
+   "label": "Emergencia nuclear o radiológica",
+   "hint": "Central nuclear, confinamiento en casa, pastillas de yodo",
+   "read": [
+    {"doc": "es-nuclear-csn-2009", "page": 19,
+     "label": "Medidas de protección a la población",
+     "note": "Folleto del CSN (2009): las medidas urgentes que se aplicarían a la población, como el confinamiento en casa o las pastillas de yodo."},
+    {"doc": "es-nuclear-csn-2009", "page": 20,
+     "label": "Alimentos, evacuación y descontaminación",
+     "note": "Qué suponen el control de alimentos y agua, la evacuación de la zona y la descontaminación, y por qué escuchar a las autoridades."},
+    {"doc": "es-nuclear-csn-2009", "page": 21,
+     "label": "Cómo se informa a la población",
+     "note": "La información previa a quienes viven cerca de una central y la que se da durante una emergencia."}
+   ]
+  }
+ ],
+ "limits": [
+  {"text": "En una inundación, no bajes a sótanos ni intentes sacar el coche de un garaje subterráneo.", "doc": "es-fma-112cv", "page": 33},
+  {"text": "Si el agua te sorprende en el coche, abandónalo si es necesario: tu vida vale más.", "doc": "es-fma-112cv", "page": 38},
+  {"text": "Ante las señales de un tsunami, aléjate de la costa sin esperar a verlo.", "doc": "es-terremoto-tsunami-ign", "page": 1},
+  {"text": "En un accidente nuclear, escucha y obedece las instrucciones de las autoridades.", "doc": "es-nuclear-csn-2009", "page": 20},
+  {"text": "Si el lugar no es seguro, espera a los equipos de rescate.", "doc": "es-primeros-auxilios-samur", "page": 4}
+ ],
+ "prepare": [
+  {"doc": "es-kit-emergencia-gencat", "page": 1,
+   "label": "Qué llevar en el kit de evacuación",
+   "note": "Cartel de Protecció Civil de Catalunya: radio, pilas, linterna, agua y alimentos, documentación, móvil y cargador, dinero, ropa de repuesto y llaves, entre otros."},
+  {"doc": "es-plan-familiar-2012", "page": 12,
+   "label": "El equipo de emergencia del plan familiar",
+   "note": "Copias de documentos y llaves, linterna y pilas, velas, móvil y cargador, botiquín, herramientas y mantas. Presentación de Protección Civil de 2012."},
+  {"doc": "es-plan-familiar-2012", "page": 11,
+   "label": "Punto de encuentro y cómo comunicarse en familia",
+   "note": "Fijar un punto de encuentro y una forma de comunicarse entre los miembros de la familia. Presentación de Protección Civil de 2012."},
+  {"doc": "es-plan-familiar-2012", "page": 21,
+   "label": "Un plan familiar rellenado, como ejemplo",
+   "note": "Modelo de plan con los datos de cada miembro de la familia y los teléfonos útiles de la zona."},
+  {"doc": "es-fma-112cv", "page": 26,
+   "label": "Prepararse si vives en zona inundable",
+   "note": "Informarse de si casa y trabajo están en zona inundable, prever el teletrabajo con avisos naranja o rojo y preparar la vivienda."},
+  {"doc": "es-fma-112cv", "page": 28,
+   "label": "Móvil, documentos y red de apoyo",
+   "note": "Instalar la app 112 accesible, crear un grupo de mensajería con tu red de apoyo, digitalizar documentos importantes y recibir alertas por canales adaptados."},
+  {"doc": "es-edificios-inundaciones",
+   "label": "Proteger una vivienda de las inundaciones",
+   "note": "Guía de MITECO y el Consorcio de Compensación de Seguros (2017) con medidas para reducir los daños de una inundación en casas y edificios."},
+  {"doc": "es-es-alert-app",
+   "label": "La app de alertas de Protección Civil",
+   "note": "Preguntas frecuentes sobre la app de la Red de Alerta Nacional: suscribirse a avisos, ver el mapa de alertas y recibirlas según tu ubicación."}
+ ],
+ "learn": [
+  {"doc": "es-primeros-auxilios-samur",
+   "label": "Guía de primeros auxilios de SAMUR-Protección Civil",
+   "note": "Guía completa para la población: cómo actuar, reconocer a la víctima, RCP, atragantamiento, hemorragias, quemaduras y más. Edición antigua: cita las guías de RCP de 2010."},
+  {"doc": "es-accidentes-cruzroja-2015",
+   "label": "Pequeños accidentes en casa (Cruz Roja)",
+   "note": "Folleto de 2015: conducta PAS, golpes, heridas, quemaduras, pérdida de conocimiento, RCP y botiquín doméstico."},
+  {"doc": "es-meteoalerta-umbrales",
+   "label": "Umbrales de los avisos de AEMET por zonas",
+   "note": "Tablas técnicas con los valores de lluvia, viento, nieve y temperatura que activan cada nivel de aviso en cada zona."},
+  {"doc": "es-nuclear-csn-2009",
+   "label": "Emergencia en centrales nucleares (CSN)",
+   "note": "Folleto completo del CSN de 2009: vigilancia de la radiación, planes de emergencia nuclear y cómo se organizan."},
+  {"doc": "es-inundaciones-xunta",
+   "label": "Inundaciones: recomendaciones de la Xunta (en gallego)",
+   "note": "Guía de 2022, en gallego, sobre qué hacer antes, durante y después de una inundación."},
+  {"doc": "es-calor-sanidad-2025",
+   "label": "Plan nacional ante el exceso de temperaturas (2025)",
+   "note": "El plan completo de Sanidad: niveles de riesgo para la salud por calor, cómo se vigilan y las recomendaciones."}
+ ],
+ "related": ["disaster", "hurt", "water", "power", "comms"]
+}
