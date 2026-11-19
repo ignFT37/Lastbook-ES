@@ -16,6 +16,17 @@
 #define LOAD_LIBRARY_SEARCH_SYSTEM32 0x00000800
 #endif
 
+// Lastbook ES: build_setup_windows.sh passes its own names (from lastbook_setup.py) in a header, with -include. These are upstream's.
+#ifndef SETUP_TITLE
+#define SETUP_TITLE L"Lastbook Setup"       // the title of this front's message boxes
+#endif
+#ifndef SETUP_FOLDER
+#define SETUP_FOLDER L"LastbookSetup-"      // the private folder's name, before its random part
+#endif
+#ifndef SETUP_INNER
+#define SETUP_INNER L"Lastbook Setup.exe"   // the real installer's name in that folder
+#endif
+
 // With no C runtime, the compiler may still turn a zeroing loop into a call to memset: this is it.
 void *memset(void *d, int c, unsigned long long n) {
     volatile unsigned char *p = (volatile unsigned char *)d;
@@ -26,7 +37,7 @@ void *memset(void *d, int c, unsigned long long n) {
 static const char MAGIC[8] = {'L', 'B', 'S', 'E', 'T', 'U', 'P', '1'};
 
 static void fail(const wchar_t *what) {
-    MessageBoxW(NULL, what, L"Lastbook Setup", MB_OK | MB_ICONERROR);
+    MessageBoxW(NULL, what, SETUP_TITLE, MB_OK | MB_ICONERROR);
     ExitProcess(1);
 }
 
@@ -104,7 +115,7 @@ void WinMainCRTStartup(void) {
     int made = 0;
     for (int tries = 0; tries < 20 && !made; tries++) {
         dir[n] = 0;
-        wcat(dir, MAX_PATH + 64, L"LastbookSetup-");
+        wcat(dir, MAX_PATH + 64, SETUP_FOLDER);
         whex(dir, MAX_PATH + 64, GetCurrentProcessId());
         whex(dir, MAX_PATH + 64, GetTickCount() + (DWORD)tries * 7919u);
         made = CreateDirectoryW(dir, NULL);     // fails if it exists: never reuse a folder someone else made
@@ -112,7 +123,8 @@ void WinMainCRTStartup(void) {
     if (!made) fail(L"Setup could not make a temporary folder.");
     exe[0] = 0;
     wcat(exe, MAX_PATH + 96, dir);
-    wcat(exe, MAX_PATH + 96, L"\\Lastbook Setup.exe");
+    wcat(exe, MAX_PATH + 96, L"\\");
+    wcat(exe, MAX_PATH + 96, SETUP_INNER);
     HANDLE o = CreateFileW(exe, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
     if (o == INVALID_HANDLE_VALUE) { RemoveDirectoryW(dir); fail(L"Setup could not write to the temporary folder."); }
     if (!SetFilePointerEx(f, pos, NULL, FILE_BEGIN)) fail(L"Setup could not read itself.");

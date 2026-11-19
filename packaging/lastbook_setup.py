@@ -1,15 +1,17 @@
-"""Lastbook's Windows installer and uninstaller: one program, built twice by packaging/build_setup_windows.sh.
+"""Lastbook ES's Windows installer and uninstaller: one program, built twice by packaging/build_setup_windows.sh.
 
-  Lastbook-<version>-Setup.exe  carries app.zip (the app folder, the uninstall build of this program and the icon) and installs it
-                                for this user only, with no administrator prompt.
-  Uninstall Lastbook.exe        the same program without app.zip. It sits in the install folder and Apps & features runs it.
+  LastbookES-<version>-Setup.exe  carries app.zip (the app folder, the uninstall build of this program and the icon) and installs it
+                                  for this user only, with no administrator prompt.
+  Uninstall Lastbook ES.exe       the same program without app.zip. It sits in the install folder and Apps & features runs it.
 
-Switches: /S quiet; /uninstall; /uninstall /S. Exit codes: 0 done, 1 failed, 2 Lastbook is open, 3 cancelled.
+Switches: /S quiet; /uninstall; /uninstall /S. Exit codes: 0 done, 1 failed, 2 Lastbook ES is open, 3 cancelled.
 
-Everything goes inside this user's profile: the program in %LOCALAPPDATA%\\Programs\\Lastbook, a Start menu shortcut, an optional
+Everything goes inside this user's profile: the program in %LOCALAPPDATA%\\Programs\\LastbookES, a Start menu shortcut, an optional
 desktop shortcut, and one registry key under HKCU for Apps & features. Nothing reaches the network. Uninstalling removes exactly what
-was installed, as listed in installed-files.txt, and never LastbookData or Lastbook's settings.
+was installed, as listed in installed-files.txt, and never LastbookData or the app's settings.
 
+Lastbook ES: every name below is its own (folder, program, uninstaller, shortcuts, Apps & features entry), so it installs beside the
+official Lastbook and never touches it. build_setup_windows.sh reads them from here.
 """
 import ctypes
 import os
@@ -22,14 +24,15 @@ import zipfile
 from pathlib import Path
 
 VERSION = '1.1.11'
-NAME = 'Lastbook'
-APP_EXE = 'Lastbook.exe'
-UNINSTALLER = 'Uninstall Lastbook.exe'
+NAME = 'LastbookES'                 # the install folder and the Apps & features key (the official app's are 'Lastbook')
+TITLE = 'Lastbook ES'               # what the person reads: windows, shortcuts, Apps & features
+APP_EXE = 'LastbookES.exe'
+UNINSTALLER = 'Uninstall Lastbook ES.exe'
 ICON = 'Lastbook.ico'
 MANIFEST = 'installed-files.txt'
-KEY = r'Software\Microsoft\Windows\CurrentVersion\Uninstall\Lastbook'
+KEY = r'Software\Microsoft\Windows\CurrentVersion\Uninstall\LastbookES'
 OK, FAILED, APP_OPEN, CANCELLED = 0, 1, 2, 3
-APP_OPEN_TEXT = 'Lastbook is open. Close it, then try again.'
+APP_OPEN_TEXT = f'{TITLE} is open. Close it, then try again.'
 NO_WINDOW, DETACHED, NEW_GROUP, BREAKAWAY = 0x08000000, 0x00000008, 0x00000200, 0x01000000
 POWERSHELL = Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32' / 'WindowsPowerShell' / 'v1.0' / 'powershell.exe'
 
@@ -61,12 +64,12 @@ def install_dir():
 
 def start_menu_link():
     programs = known_folder(0xA77F5D77, 0x2E2B, 0x44C3, (0xA6, 0xA2, 0xAB, 0xA6, 0x01, 0x05, 0x4A, 0x51))    # FOLDERID_Programs
-    return (programs or Path(os.environ['APPDATA']) / 'Microsoft' / 'Windows' / 'Start Menu' / 'Programs') / 'Lastbook.lnk'
+    return (programs or Path(os.environ['APPDATA']) / 'Microsoft' / 'Windows' / 'Start Menu' / 'Programs') / f'{TITLE}.lnk'
 
 
 def desktop_link():
     desktop = known_folder(0xB4BFCC3A, 0xDB2C, 0x424C, (0xB0, 0x29, 0x7F, 0xE9, 0x9A, 0x87, 0xC6, 0x41))    # FOLDERID_Desktop
-    return (desktop or Path.home() / 'Desktop') / 'Lastbook.lnk'
+    return (desktop or Path.home() / 'Desktop') / f'{TITLE}.lnk'
 
 
 def payload():
@@ -113,12 +116,12 @@ def powershell(script, **env):
 
 
 LINK_SCRIPT = ('$s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:LB_LINK); $s.TargetPath = $env:LB_TARGET; '
-               '$s.WorkingDirectory = $env:LB_DIR; $s.IconLocation = $env:LB_ICON + ",0"; $s.Description = "Lastbook"; $s.Save()')
+               '$s.WorkingDirectory = $env:LB_DIR; $s.IconLocation = $env:LB_ICON + ",0"; $s.Description = $env:LB_TITLE; $s.Save()')
 
 
 def make_link(link, d):
     link.parent.mkdir(parents=True, exist_ok=True)
-    powershell(LINK_SCRIPT, LINK=link, TARGET=d / APP_EXE, DIR=d, ICON=d / ICON)
+    powershell(LINK_SCRIPT, LINK=link, TARGET=d / APP_EXE, DIR=d, ICON=d / ICON, TITLE=TITLE)
 
 
 # ---------- install and remove ----------
@@ -208,7 +211,7 @@ def install(desktop, progress=lambda f: None):
 
 def register(d, size):
     with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, KEY, 0, winreg.KEY_WRITE) as k:
-        for name, value in (('DisplayName', NAME), ('DisplayVersion', VERSION), ('Publisher', NAME), ('DisplayIcon', str(d / ICON)),
+        for name, value in (('DisplayName', TITLE), ('DisplayVersion', VERSION), ('Publisher', TITLE), ('DisplayIcon', str(d / ICON)),
                             ('InstallLocation', str(d)), ('UninstallString', f'"{d / UNINSTALLER}" /uninstall'),
                             ('QuietUninstallString', f'"{d / UNINSTALLER}" /uninstall /S')):
             winreg.SetValueEx(k, name, 0, winreg.REG_SZ, value)
@@ -252,7 +255,7 @@ def uninstall():
 
 def open_lastbook(d):
     env = {k: v for k, v in os.environ.items() if not k.startswith(('_PYI', '_MEI'))}
-    env['PYINSTALLER_RESET_ENVIRONMENT'] = '1'    # Lastbook.exe is a PyInstaller program too: it must not take this one's settings
+    env['PYINSTALLER_RESET_ENVIRONMENT'] = '1'    # LastbookES.exe is a PyInstaller program too: it must not take this one's settings
     subprocess.Popen([str(d / APP_EXE)], cwd=str(d), env=env, creationflags=DETACHED | NEW_GROUP, close_fds=True)
 
 
@@ -307,7 +310,7 @@ def run_window():
         F.Application.SetCompatibleTextRenderingDefault(False)
         font = D.Font('Segoe UI', 9.0)
         form = F.Form()
-        form.Text, form.Font, form.BackColor, form.ForeColor = 'Lastbook Setup', font, body, ink
+        form.Text, form.Font, form.BackColor, form.ForeColor = f'{TITLE} Setup', font, body, ink
         form.FormBorderStyle, form.MaximizeBox, form.MinimizeBox = F.FormBorderStyle.FixedSingle, False, True
         form.StartPosition, form.ClientSize = F.FormStartPosition.CenterScreen, D.Size(S(500), S(300))
         form.Icon = D.Icon.ExtractAssociatedIcon(sys.executable)
@@ -326,7 +329,7 @@ def run_window():
         mark = F.PictureBox()
         mark.Image, mark.SizeMode = form.Icon.ToBitmap(), F.PictureBoxSizeMode.Zoom
         add(mark, 28, 28, 48, 48)
-        title = label('Install Lastbook', 92, 26, 380, 32, 15.0, True)
+        title = label(f'Install {TITLE}', 92, 26, 380, 32, 15.0, True)
         sub = label(f'Version {VERSION}', 94, 58, 380, 20, colour=quiet)
         where_head = label('Install folder', 28, 100, 444, 18, colour=quiet)
         where = label(str(install_dir()), 28, 120, 444, 20)
@@ -380,16 +383,16 @@ def run_window():
             go.Enabled = stop.Enabled = desk.AutoCheck = True
             if outcome[0] == 'ok':
                 state['done'], result[0] = True, OK
-                title.Text, sub.Text = 'Lastbook is installed', 'Find it in the Start menu.'
+                title.Text, sub.Text = f'{TITLE} is installed', 'Find it in the Start menu.'
                 for c in (where_head, where, desk, bar):
                     c.Visible = False
-                go.Text, stop.Text = 'Open Lastbook', 'Close'
+                go.Text, stop.Text = f'Open {TITLE}', 'Close'
                 go.Focus()
                 return
             bar.Visible = False
-            text = APP_OPEN_TEXT if outcome[0] == 'open' else f'Lastbook could not be installed.\n\n{outcome[1]}'
+            text = APP_OPEN_TEXT if outcome[0] == 'open' else f'{TITLE} could not be installed.\n\n{outcome[1]}'
             result[0] = APP_OPEN if outcome[0] == 'open' else FAILED
-            F.MessageBox.Show(form, text, 'Lastbook Setup', F.MessageBoxButtons.OK,
+            F.MessageBox.Show(form, text, f'{TITLE} Setup', F.MessageBoxButtons.OK,
                               F.MessageBoxIcon.Information if outcome[0] == 'open' else F.MessageBoxIcon.Error)
 
         timer.Tick += tick
@@ -401,7 +404,7 @@ def run_window():
                 try:
                     open_lastbook(install_dir())
                 except Exception as e:
-                    F.MessageBox.Show(form, f'Lastbook could not be opened.\n\n{e}', 'Lastbook Setup')
+                    F.MessageBox.Show(form, f'{TITLE} could not be opened.\n\n{e}', f'{TITLE} Setup')
                 form.Close()
                 return
             desk_checked = bool(desk.Checked)
@@ -439,13 +442,13 @@ def run_window():
     thread.Start()
     thread.Join()
     if failure:
-        message(f'Lastbook Setup could not start.\n\n{failure[0]}', 0x10)
+        message(f'{TITLE} Setup could not start.\n\n{failure[0]}', 0x10)
         return FAILED
     return result[0]
 
 
 def message(text, flags):
-    return ctypes.windll.user32.MessageBoxW(None, text, 'Lastbook', flags)
+    return ctypes.windll.user32.MessageBoxW(None, text, TITLE, flags)
 
 
 def main(argv):
@@ -453,7 +456,7 @@ def main(argv):
     args = {a.lower() for a in argv}
     quiet = '/s' in args
     if '/uninstall' in args or payload() is None:
-        if not quiet and message('Remove Lastbook from this computer?\n\nYour library (LastbookData) and settings stay.', 0x24) != 6:   # MB_YESNO | MB_ICONQUESTION, IDYES
+        if not quiet and message(f'Remove {TITLE} from this computer?\n\nYour library (LastbookData) and settings stay.', 0x24) != 6:   # MB_YESNO | MB_ICONQUESTION, IDYES
             return CANCELLED
         try:
             uninstall()
@@ -462,9 +465,9 @@ def main(argv):
             return APP_OPEN
         except Exception as e:
             traceback.print_exc()
-            quiet or message(f'Lastbook could not be removed.\n\n{e}', 0x10)
+            quiet or message(f'{TITLE} could not be removed.\n\n{e}', 0x10)
             return FAILED
-        quiet or message('Lastbook is removed.', 0x40)
+        quiet or message(f'{TITLE} is removed.', 0x40)
         return OK
     if quiet:
         try:

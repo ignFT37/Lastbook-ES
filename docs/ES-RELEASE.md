@@ -9,6 +9,8 @@
 | One community's map (50 MB to 1.9 GB) | assets of this fork's GitHub release | size and SHA-256 in the same manifest |
 | Local AI, Gemma 4 E4B (4.8 GB), optional | Hugging Face, at a fixed revision | size and SHA-256 |
 
+People get it with `LastbookES-<version>-Setup.exe` (step 7 below).
+
 Spain's own documents (`derived/spain-library`) travel inside the app: setup puts them into every library it installs
 (`engine/setup/spain.py`). Setup reaches only the hosts in `engine/setup/download.py`: the official site, Hugging Face, `github.com`
 and the two hosts GitHub redirects release downloads to. `engine/setup/roots.pem` holds the only certificates it trusts.
@@ -34,12 +36,24 @@ and the two hosts GitHub redirects release downloads to. `engine/setup/roots.pem
 
    It stops if a package scan fails, if the TLS roots do not verify every host, or if a manifest address is not on the allowed hosts.
 6. **Checks**: `python app/tests/test_setup.py` (96 tests) and `python packaging/check_tls_roots.py`.
+7. **The installer** (the same Python, and llvm-mingw's clang for its front, as in `packaging/llm/build_llm_windows.sh`):
+
+   ```bash
+   PY=/c/path/to/python.exe DIST='C:\path\to\build-app\dist\LastbookES' OUT='C:\path\to\build-setup' \
+   CLANG='C:\path\to\llvm-mingw-20261020-ucrt-x86_64\bin\clang.exe' bash packaging/build_setup_windows.sh
+   ```
+
+   It makes `OUT\LastbookES-<version>-Setup.exe`. It installs for this user only, with no administrator prompt, into
+   `%LOCALAPPDATA%\Programs\LastbookES`, with its own Start menu shortcut, Apps & features entry (`HKCU\...\Uninstall\LastbookES`) and
+   uninstaller (`Uninstall Lastbook ES.exe`), so the official Lastbook is never touched. The names and the version come from
+   `packaging/lastbook_setup.py`. The version stays Lastbook's (1.1.11): About's "Check for updates" compares it with the official app's.
 
 ## Publish
 
-Upload the 19 `Lastbook-Map-ES-*.zip` files as assets of the release `MAPS_BASE` names. Each name, size and SHA-256 is in the manifest
-inside the app, so a zip that changes needs a new build. `manifest-v1.json` (from `dist\LastbookES\_internal\setup`) may also go to the
-release: setup reads it once when it opens online, and it can add maps but never change a pinned one.
+Upload `LastbookES-<version>-Setup.exe` and the 19 `Lastbook-Map-ES-*.zip` files as assets of the release `MAPS_BASE` names. Each
+zip's name, size and SHA-256 is in the manifest inside the app, so a zip that changes needs a new build (of the app and the installer).
+`manifest-v1.json` (from `dist\LastbookES\_internal\setup`) goes to the release too: setup reads the latest release's copy once when it
+opens online, and it can add maps but never change a pinned one. A `SHA256SUMS.txt` of every asset lets people check their download.
 
 ## Try it with no internet
 

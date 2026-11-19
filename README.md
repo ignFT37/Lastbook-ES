@@ -1,3 +1,10 @@
+> **Lastbook ES** es un fork no oficial de Lastbook adaptado a España: guía de emergencias con el 112, documentos oficiales españoles,
+> mapa detallado de cada comunidad autónoma e IA local que cabe en un portátil de 16 GB. No tiene relación con el proyecto Lastbook.
+> Instalador para Windows en [Releases](https://github.com/ignFT37/Lastbook-ES/releases); cómo se construye, en
+> [docs/ES-RELEASE.md](docs/ES-RELEASE.md). Debajo sigue el README del proyecto original.
+>
+> *Lastbook ES is an unofficial fork of Lastbook adapted to Spain. It is not affiliated with the Lastbook project.*
+
 # Lastbook
 
 Lastbook is an offline survival library for Mac, Windows and Linux. It puts manuals, videos, encyclopedias, an offline map and
