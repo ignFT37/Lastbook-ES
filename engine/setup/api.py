@@ -449,7 +449,7 @@ class Setup:
                 return {'error': 'No local AI is offered for this version.', 'code': 'unavailable'}
             mp = self.manifest.map(map_id) if map_id else None
             if map_id and (not mp or not mp['available']):
-                return {'error': 'That state’s map is not available yet.', 'code': 'unavailable'}
+                return {'error': 'That region’s map is not available yet.', 'code': 'unavailable'}
             requested_address = address_id
             address_id = address_id or map_id or (pack or {}).get('map') or cur.get('map')
             if address_id in ('base', 'us'):
@@ -457,7 +457,7 @@ class Setup:
             addresses = self.manifest.address_index(address_id) if address_id else None
             if not addresses or not addresses['available']:
                 if requested_address:
-                    return {'error': 'That state’s address search is not available yet.', 'code': 'unavailable'}
+                    return {'error': 'That region’s address search is not available yet.', 'code': 'unavailable'}
                 addresses = None
             if folder and self.current and install._real(Path(folder).expanduser()) == install._real(self.current):
                 folder = None      # the window sends the shown folder, which in manage mode is the open library itself
@@ -963,6 +963,12 @@ class Setup:
                 and current.get('map') not in (None, 'base')):
             install.copy_map(self.current, lib)
         install._write_json(lib / 'setup-pack.json', {'pack': pack['id'], 'installed': _now(), 'files': [f['name'] for f in pack['files']]})
+        try:      # Lastbook ES: this app's Spanish documents go into every library it installs; a library without them still works
+            from . import spain
+            spain.add_library(lib)
+        except Exception as e:
+            traceback.print_exc()
+            print(f'setup: the Spanish documents were not added ({type(e).__name__}: {e})', flush=True)
         for path, ours in got:
             if ours:
                 os.unlink(path)
@@ -1216,12 +1222,13 @@ def _default():
     global SETUP
     if SETUP is None:
         from engine import paths
+        from . import APP_DIR
         if sys.platform == 'win32':
-            settings = Path(os.environ.get('APPDATA') or Path.home() / 'AppData' / 'Roaming') / 'Lastbook'
+            settings = Path(os.environ.get('APPDATA') or Path.home() / 'AppData' / 'Roaming') / APP_DIR
         elif sys.platform.startswith('linux'):
-            settings = Path(os.environ.get('XDG_CONFIG_HOME') or Path.home() / '.config') / 'Lastbook'
+            settings = Path(os.environ.get('XDG_CONFIG_HOME') or Path.home() / '.config') / APP_DIR
         else:
-            settings = Path.home() / 'Library' / 'Application Support' / 'Lastbook'
+            settings = Path.home() / 'Library' / 'Application Support' / APP_DIR
         SETUP = Setup('manage', settings, paths.DATA, current=paths.DATA)
     return SETUP
 

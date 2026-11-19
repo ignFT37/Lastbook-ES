@@ -38,7 +38,7 @@ def system_dll(name):
         _dlls[name] = ctypes.WinDLL(name, winmode=_SYSTEM32_ONLY)
     return _dlls[name]
 
-TITLE = 'Lastbook'
+TITLE = 'Lastbook ES'
 WIDTH, HEIGHT = 1280, 860
 SURFACE = {True: (0xf3, 0xf3, 0xf3), False: (0x20, 0x20, 0x20)}   # the page's pane colour, light and dark: the caption takes it too, so they read as one surface
 MIN_SIZE = (640, 480)   # the page's area, in CSS pixels (see fit_min). Below 900 the page folds its pane to a rail; it never needs the phone layout here

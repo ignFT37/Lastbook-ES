@@ -1706,7 +1706,8 @@ def map_info():
 def pack_datasets(have, spain=()):
     """The panel beside a pack's map says only what this pack's map files hold."""
     area = 'Spain' if spain else 'the area this map details' if have['bounds'] else 'the whole US'
-    out = [{'label': 'Main roads, towns and water for the whole US (OpenStreetMap, USGS)', 'status': 'Shown at every zoom level'}]
+    out = [{'label': 'Main roads, towns and water for all of Spain (OpenStreetMap)' if spain else 'Main roads, towns and water for the whole US (OpenStreetMap, USGS)',
+            'status': 'Shown at every zoom level'}]
     if spain:
         out += spain
     elif have['detail']:

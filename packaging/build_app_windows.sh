@@ -21,6 +21,11 @@ HERE="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
 ROOT="$(realpath "$HERE/..")"
 ROOTW="$(cygpath -w "$ROOT")"
 PY="${PY:?Set PY to a CPython 3.14 python.exe}"
+# Lastbook ES: APP_NAME=LastbookES APP_TITLE="Lastbook ES" builds LastbookES.exe in dist\LastbookES, so that it can sit beside the official app.
+# SPAIN_LIBRARY: the add-on of Spanish documents (tools/es_library.py --export), which setup puts into every library it installs.
+APP="${APP_NAME:-Lastbook}"
+APP_TITLE="${APP_TITLE:-Lastbook}"
+SPAIN_LIBRARY="${SPAIN_LIBRARY:-}"
 OUT="${OUT:-$ROOTW\\build-app}"
 WEBVIEW2="${WEBVIEW2:-$ROOTW\\app\\webview2}"
 LLM="${LLM:-$ROOTW\\derived\\llm\\bin-win}"
@@ -76,7 +81,9 @@ PYCHECK
 # web/ and content/ as they ship, not the source folders: see ship_edits.json
 "$PY" -I -B "$ROOTW\\packaging\\ship_app_files.py" "$OUT\\ship"
 # What setup can install, checked against engine/setup/manifest.validate and download.py's allowed hosts by release_manifest.py
-"$PY" -I -B "$ROOTW\\packaging\\release_manifest.py" --packs "$PACKS" ${SMALL_FROM:+--small-from "$SMALL_FROM"} --out "$OUT\\ship\\setup\\manifest-v1.json"
+# Lastbook ES: MAPS_FROM is the folder tools/build_es_regions.py filled (regions.json and the community map zips), MAPS_BASE the address the
+# zips are published at (one release asset each). Their size and SHA-256 are pinned in the manifest the app carries.
+"$PY" -I -B "$ROOTW\\packaging\\release_manifest.py" --packs "$PACKS" ${SMALL_FROM:+--small-from "$SMALL_FROM"} ${MAPS_FROM:+--maps-from "$MAPS_FROM" --maps-base "${MAPS_BASE:?Set MAPS_BASE with MAPS_FROM}"} --out "$OUT\\ship\\setup\\manifest-v1.json"
 
 # Release gate: setup's downloader must verify every allowed host through roots.pem alone, and refuse a site outside it.
 "$PY" -I -B "$ROOTW\\packaging\\check_tls_roots.py" || { echo "check_tls_roots.py failed: refresh engine/setup/roots.pem before shipping" >&2; exit 1; }
@@ -87,13 +94,15 @@ VERSION="$("$PY" -I -B -c "import ast,sys;t=open(sys.argv[1],encoding='utf-8').r
 STAMP="${STAMP:-$(date -u +%Y%m%d-%H%M%S)}"
 cat > "$OUTU/version.txt" <<VERSIONINFO
 VSVersionInfo(ffi=FixedFileInfo(filevers=(${VERSION//./, }, 0), prodvers=(${VERSION//./, }, 0)),
-  kids=[StringFileInfo([StringTable('040904B0', [StringStruct('CompanyName', 'Lastbook'), StringStruct('FileDescription', 'Lastbook'),
-    StringStruct('FileVersion', '$VERSION'), StringStruct('ProductName', 'Lastbook'), StringStruct('ProductVersion', '$VERSION'),
+  kids=[StringFileInfo([StringTable('040904B0', [StringStruct('CompanyName', '$APP_TITLE'), StringStruct('FileDescription', '$APP_TITLE'),
+    StringStruct('FileVersion', '$VERSION'), StringStruct('ProductName', '$APP_TITLE'), StringStruct('ProductVersion', '$VERSION'),
     StringStruct('Comments', 'build $STAMP')])]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])])
 VERSIONINFO
 
-"$PY" -I -B -m PyInstaller --noconfirm --clean --onedir --windowed --noupx --name Lastbook --icon "$ROOTW\\packaging\\icon\\Lastbook.ico" --add-data "$ROOTW\\packaging\\icon\\Lastbook.ico;." --version-file "$OUT\\version.txt" \
+SPAIN_ARGS=()
+[ -n "$SPAIN_LIBRARY" ] && SPAIN_ARGS=(--add-data "$SPAIN_LIBRARY;spain-library")
+"$PY" -I -B -m PyInstaller --noconfirm --clean --onedir --windowed --noupx --name "$APP" --icon "$ROOTW\\packaging\\icon\\Lastbook.ico" --add-data "$ROOTW\\packaging\\icon\\Lastbook.ico;." --version-file "$OUT\\version.txt" "${SPAIN_ARGS[@]}" \
   --distpath "$OUT\\dist" --workpath "$OUT\\work" --specpath "$OUT" \
   --paths "$ROOTW\\app" --paths "$ROOTW" \
   --add-data "$OUT\\ship\\web;web" --add-data "$OUT\\ship\\content;content" \
@@ -115,8 +124,8 @@ VERSIONINFO
   --python-option "X utf8" \
   "$ROOTW\\app\\main.py"
 
-DIST="$OUT\\dist\\Lastbook"
-cp "$HERE/Lastbook.exe.config" "$(cygpath -u "$DIST")/Lastbook.exe.config"    # without it, a downloaded copy cannot open its window
-"$PY" -I -B "$ROOTW\\packaging\\scan_app_package.py" "$DIST" ${SCAN_TERMS:+--terms "$SCAN_TERMS"} --report "$OUT\\package-scan.json"
+DIST="$OUT\\dist\\$APP"
+cp "$HERE/Lastbook.exe.config" "$(cygpath -u "$DIST")/$APP.exe.config"    # without it, a downloaded copy cannot open its window
+"$PY" -I -B "$ROOTW\\packaging\\scan_app_package.py" "$DIST" --exe "$APP.exe" ${SPAIN_LIBRARY:+--need _internal/spain-library/spain-library.json} ${SCAN_TERMS:+--terms "$SCAN_TERMS"} --report "$OUT\\package-scan.json"
 du -sh "$(cygpath -u "$DIST")"
-sha256sum "$(cygpath -u "$DIST")/Lastbook.exe"
+sha256sum "$(cygpath -u "$DIST")/$APP.exe"

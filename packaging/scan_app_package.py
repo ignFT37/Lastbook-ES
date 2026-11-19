@@ -33,7 +33,9 @@ ADDRESSES = re.compile(rb'\b(?:192\.168|10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01]))\.
 CHANNEL_NAMES = {'AddHostObjectToScript', 'add_WebMessageReceived', 'WebMessageReceived', 'PostWebMessageAsJson', 'PostWebMessageAsString', 'add_script_message_handler', 'addScriptMessageHandler_name_'}
 EXPECTED_REMOTE_NAME = 'engine.library'
 # What first-run setup may reach (engine/setup/download.py ALLOWED_HOSTS and ALLOWED_SUFFIXES). A change there must be made here too.
-SETUP_HOSTS = {'downloads.lastbook.org', 'huggingface.co', 'cas-bridge.xethub.hf.co'}
+# Lastbook ES adds GitHub's release downloads: github.com, which redirects to the other two (release-assets since 2025).
+SETUP_HOSTS = {'downloads.lastbook.org', 'huggingface.co', 'cas-bridge.xethub.hf.co',
+               'github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'}
 SETUP_SUFFIXES = {'.hf.co'}
 # http.server is left out: setup's handler class (engine.setup.api), like server.py's, answers the window in-process and listens on nothing.
 NET_MODULES = {'http.client', 'socket', '_socket', 'ssl', '_ssl', 'urllib.request', 'asyncio', 'ftplib', 'smtplib', 'xmlrpc.client'}
@@ -192,14 +194,16 @@ def main():
     ap.add_argument('folder')
     ap.add_argument('--terms')
     ap.add_argument('--report')
+    ap.add_argument('--exe', default='Lastbook.exe', help='the program in the folder (Lastbook ES: LastbookES.exe)')
+    ap.add_argument('--need', action='append', default=[], help='one more file the package must hold, relative to the folder (repeatable)')
     a = ap.parse_args()
     root = Path(a.folder)
     terms = []
     if a.terms:
         terms = [t.strip() for t in open(a.terms, encoding='utf-8') if t.strip() and not t.startswith('#')]
     scan = Scan(terms)
-    scan_exe(scan, root / 'Lastbook.exe')
-    if b'X utf8' not in (root / 'Lastbook.exe').read_bytes():
+    scan_exe(scan, root / a.exe)
+    if b'X utf8' not in (root / a.exe).read_bytes():
         scan.fails.append('the exe does not carry the UTF-8 option')
     for path in sorted(p for p in root.rglob('*') if p.is_file()):
         rel = str(path.relative_to(root))
@@ -229,7 +233,7 @@ def main():
             with zipfile.ZipFile(path) as z:
                 for name in z.namelist():
                     scan.text(f'{rel}!{name}', z.read(name), False)
-    need = ['Lastbook.exe', 'Lastbook.exe.config', '_internal/webview2/Microsoft.Web.WebView2.Core.dll', '_internal/webview2/Microsoft.Web.WebView2.WinForms.dll',
+    need = a.need + [a.exe, a.exe + '.config', '_internal/webview2/Microsoft.Web.WebView2.Core.dll', '_internal/webview2/Microsoft.Web.WebView2.WinForms.dll',
             '_internal/webview2/WebView2Loader.dll', '_internal/web/index.html', '_internal/llm/lastbook-llm.exe', '_internal/llm/libllama.dll',
             '_internal/llm/ggml-vulkan.dll', '_internal/llm/ggml-cpu-x64.dll', '_internal/setup/manifest-v1.json',
             '_internal/web/setup.html', '_internal/web/setup.js', '_internal/web/setup.css', '_internal/engine/setup/roots.pem',

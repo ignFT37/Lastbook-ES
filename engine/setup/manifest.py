@@ -9,9 +9,11 @@ from pathlib import Path
 
 from . import download
 
-REMOTE = 'https://downloads.lastbook.org/manifest-v1.json'
+REMOTE = 'https://github.com/ignFT37/Lastbook-ES/releases/latest/download/manifest-v1.json'   # Lastbook ES: this fork's own releases
 SHA = re.compile(r'^[0-9a-f]{64}$')
-LIBRARY_HOSTS = frozenset({'downloads.lastbook.org'})   # packs and state maps come from Lastbook's own download site only
+# The Small pack comes from Lastbook's own download site and the community maps from this fork's GitHub releases; both are pinned by size
+# and SHA-256 in the manifest the app is built with (merge() below never lets a fetched copy change them).
+LIBRARY_HOSTS = frozenset({'downloads.lastbook.org', 'github.com'})
 MODEL_HOSTS = frozenset({'huggingface.co'})             # the model from Hugging Face only (it redirects to its own CDN hosts)
 
 

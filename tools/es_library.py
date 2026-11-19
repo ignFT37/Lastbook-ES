@@ -72,20 +72,25 @@ def save(p, v, indent=1):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('--data', required=True, help='the data folder, the one that holds library-data/')
+    ap.add_argument('--data', help='the data folder, the one that holds library-data/')
+    ap.add_argument('--export', help='instead of changing a data folder, write the add-on that setup puts into every library it '
+                                     'installs (engine/setup/spain.py): the documents, their text and their records')
     ap.add_argument('--files', required=True, help='folder holding the downloaded files named in the manifest')
     ap.add_argument('--manifest', default=str(HERE / 'content' / 'es' / 'library-es.json'))
     ap.add_argument('--dry-run', action='store_true', help='read and extract everything, change nothing')
     a = ap.parse_args()
+    if bool(a.data) == bool(a.export):
+        ap.error('give --data or --export, not both and not neither')
 
-    data = Path(a.data)
-    lib = data / 'library-data'
     files = Path(a.files)
     own = Path(a.manifest).parent
-    cat_p, db_p, sum_p, pack_p, side_p = (lib / 'catalog.json', lib / 'search.sqlite', lib / 'summary.json',
-                                          data / 'pack.json', lib / 'spain-addon.json')
-    if not cat_p.is_file() or not db_p.is_file():
-        sys.exit(f'No library at {lib}')
+    if a.data:
+        data = Path(a.data)
+        lib = data / 'library-data'
+        cat_p, db_p, sum_p, pack_p, side_p = (lib / 'catalog.json', lib / 'search.sqlite', lib / 'summary.json',
+                                              data / 'pack.json', lib / 'spain-addon.json')
+        if not cat_p.is_file() or not db_p.is_file():
+            sys.exit(f'No library at {lib}')
     docs = load(Path(a.manifest))
 
     # ---- read and check the manifest, extract every text before touching the library
@@ -117,6 +122,28 @@ def main():
 
     if a.dry_run:
         print('dry run: nothing changed')
+        return
+
+    if a.export:
+        out = Path(a.export)
+        shutil.rmtree(out, ignore_errors=True)
+        added = {'resources': 0, 'pdfs': 0, 'pdf_pages': 0, 'web_pages': 0, 'document_bytes': 0, 'counts.pdf': 0, 'counts.html': 0}
+        for rec, src, pages in prepared:
+            for rel in (rec['path'], rec['text_path']):
+                (out / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, out / rec['path'])
+            (out / rec['text_path']).write_text('\f'.join(pages), encoding='utf-8')
+            added['resources'] += 1
+            added['document_bytes'] += rec['bytes']
+            kind = 'pdf' if rec['kind'] == 'pdf' else 'html'
+            added['counts.' + kind] += 1
+            if kind == 'pdf':
+                added['pdfs'] += 1
+                added['pdf_pages'] += rec['pages']
+            else:
+                added['web_pages'] += 1
+        save(out / 'spain-library.json', {'version': 1, 'records': [r for r, _, _ in prepared], 'added': added})
+        print(f'exported {len(prepared)} documents ({added["pdf_pages"]} PDF pages, {added["document_bytes"] / 1e6:.1f} MB) to {out}')
         return
 
     # ---- keep the originals once

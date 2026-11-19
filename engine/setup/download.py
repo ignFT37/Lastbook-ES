@@ -29,6 +29,9 @@ ALLOWED_HOSTS = frozenset({
     'downloads.lastbook.org',
     'huggingface.co',
     'cas-bridge.xethub.hf.co',
+    'github.com',                               # Lastbook ES: the community maps are assets of this fork's GitHub releases...
+    'release-assets.githubusercontent.com',     # ...which GitHub serves from here (objects.* before 2025)
+    'objects.githubusercontent.com',
 })
 ALLOWED_SUFFIXES = ('.hf.co',)      # Hugging Face's download hosts (cas-bridge.xethub.hf.co and its siblings)
 MAX_REDIRECTS = 5

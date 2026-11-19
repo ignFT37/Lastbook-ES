@@ -25,7 +25,9 @@ sys.path[:0] = [str(ROOT)]
 import llm_local                                   # noqa: E402  (constants only: importing it starts nothing)
 from engine.setup import download, manifest        # noqa: E402
 
-MEASURED_MEMORY = 18_160_150_464 + 867_233_792     # Mac Studio M3 Ultra, 12 Nov 2026, --ctx 16384: device_bytes + host_bytes
+# Lastbook ES: Gemma 4 E4B (llm_local.py), measured with lastbook-llm --measure on a laptop with an RTX 3050 (4 GB) and 16 GB of RAM,
+# 19 Nov 2026, --ctx 16384: device_bytes + host_bytes. (Upstream's 26B A4B: 18_160_150_464 + 867_233_792, on a Mac Studio.)
+MEASURED_MEMORY = 6_500_932_240
 BASE = 'https://downloads.lastbook.org'     # live since 12 Nov 2026; packs and maps are accepted from this host only
 SMALL_SUMMARY = 'The essentials: first aid, water, food, shelter and repair, with the maps of this area.'
 
@@ -33,7 +35,7 @@ SMALL_SUMMARY = 'The essentials: first aid, water, food, shelter and repair, wit
 def model_entry(memory_bytes):
     rev = re.search(r'revision ([0-9a-f]{40})', llm_local.SOURCE).group(1)
     repo = llm_local.SOURCE.split(',')[0].strip()
-    return {'id': 'gemma-4-26b-a4b', 'title': 'Gemma 4 26B A4B', 'file': llm_local.FILE,
+    return {'id': 'gemma-4-e4b', 'title': 'Gemma 4 E4B', 'file': llm_local.FILE,
             'url': f'https://huggingface.co/{repo}/resolve/{rev}/{llm_local.FILE}?download=true',
             'size': llm_local.SIZE, 'sha256': llm_local.SHA256, 'memory_bytes': int(memory_bytes), 'available': True}
 
@@ -62,12 +64,23 @@ def small_from(folder):
             'files': [{'name': z.name, 'url': f'{BASE}/{z.name}', 'size': z.stat().st_size, 'sha256': sums[z.name], 'kind': 'zip'}]}
 
 
+def maps_from(folder, base):
+    """The "maps" of the manifest from a folder that tools/build_es_regions.py filled (regions.json and the zips), when the zips are
+    published as assets at base (https://github.com/<owner>/<repo>/releases/download/<tag>)."""
+    got = json.loads((Path(folder) / 'regions.json').read_text(encoding='utf-8'))['regions']
+    return [{'id': r['id'], 'title': r['title'], 'kind': r['kind'], 'installed_bytes': r['installed_bytes'], 'available': True,
+             'includes': r['includes'], 'files': [{'name': f['name'], 'url': f'{base.rstrip("/")}/{f["name"]}', 'size': f['size'],
+                                                   'sha256': f['sha256'], 'kind': f.get('kind', 'zip')} for f in r['files']]} for r in got]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--packs', default=str(ROOT / 'derived' / 'release' / 'manifest-v1.json'))
     ap.add_argument('--out', default=str(ROOT / 'derived' / 'release' / 'setup' / 'manifest-v1.json'))
     ap.add_argument('--measure', help='a copy of the model file to measure memory_bytes from')
     ap.add_argument('--small-from', help='a release folder holding Lastbook-Small.zip and SHA256SUMS.txt')
+    ap.add_argument('--maps-from', help='Lastbook ES: the folder tools/build_es_regions.py wrote (regions.json and the map zips)')
+    ap.add_argument('--maps-base', help='Lastbook ES: the address the map zips are published at, one asset each')
     a = ap.parse_args()
     try:
         src = json.loads(Path(a.packs).read_text(encoding='utf-8'))
@@ -84,7 +97,12 @@ def main():
                 pass
     if not packs:
         sys.exit(f'no packs: {a.packs} is missing or empty (publish-packs writes it); --small-from builds Small alone')
-    out = {'version': 1, 'published': src.get('published') or time.strftime('%Y-%m-%d'), 'packs': packs, 'maps': list(src.get('maps') or []),
+    maps = list(src.get('maps') or [])
+    if a.maps_from:
+        if not a.maps_base:
+            sys.exit('--maps-from needs --maps-base')
+        maps += maps_from(a.maps_from, a.maps_base)
+    out = {'version': 1, 'published': src.get('published') or time.strftime('%Y-%m-%d'), 'packs': packs, 'maps': maps,
            'address_indexes': list(src.get('address_indexes') or []),
            'models': [model_entry(measure(a.measure) if a.measure else MEASURED_MEMORY)]}
     if manifest.validate(out) is None:

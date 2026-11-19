@@ -8,7 +8,7 @@ The test server lives only in this file: it serves a small fake pack and model o
 for the run, and can cut the connection mid-file, send wrong bytes, change the file's ETag, ignore Range, or redirect anywhere.
 The product's allowlist is not touched: tests pass their own `allowed` and TLS context to the downloader. Never packaged.
 """
-import hashlib, http.server, importlib.util, io, json, os, shutil, signal, socketserver, ssl, subprocess, sys, threading, time, unittest, zipfile
+import hashlib, http.server, importlib.util, io, json, os, shutil, signal, socketserver, sqlite3, ssl, subprocess, sys, threading, time, unittest, zipfile
 from pathlib import Path
 from unittest import mock
 
@@ -16,6 +16,8 @@ sys.dont_write_bytecode = True
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path[:0] = [str(HERE.parent), str(ROOT)]
+# Lastbook ES: the job tests must not put this checkout's own Spanish add-on (derived/spain-library) into their fake libraries.
+os.environ['LASTBOOK_SPAIN_LIBRARY'] = str(HERE / 'no-spain-library')
 from engine.setup import api, download, hardware, install, manifest  # noqa: E402
 from app.tests import shorttemp  # noqa: E402
 
@@ -244,6 +246,30 @@ class Allowlist(unittest.TestCase):
         for u in bad:
             self.assertFalse(download.url_allowed(u), u)
 
+    def test_github_release_hosts(self):
+        """Lastbook ES: the community maps are assets of this fork's GitHub releases. github.com redirects to release-assets
+        (objects before 2025); nothing else under github.com or githubusercontent.com is reachable."""
+        for h in ('github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'):
+            self.assertTrue(download.host_allowed(h), h)
+        for h in ('raw.githubusercontent.com', 'gist.github.com', 'api.github.com', 'githubusercontent.com', 'evilgithub.com', 'github.com.evil.com'):
+            self.assertFalse(download.host_allowed(h), h)
+        self.assertTrue(download.url_allowed('https://github.com/ignFT37/Lastbook-ES/releases/download/v1.0.0/Lastbook-Map-ES-RI.zip'))
+        self.assertFalse(download.url_allowed('http://github.com/ignFT37/Lastbook-ES/releases/download/v1.0.0/Lastbook-Map-ES-RI.zip'))
+        self.assertFalse(download.url_allowed('https://github.com:8443/x'))
+
+    def test_map_hosts_in_the_product(self):
+        """A map may come from Lastbook's download site or this fork's GitHub releases, a model only from Hugging Face."""
+        def entry(url):
+            return {'version': 1, 'maps': [{'id': 'ES-RI', 'available': True, 'installed_bytes': 5,
+                                            'files': [{'name': 'Lastbook-Map-ES-RI.zip', 'url': url, 'size': 1, 'sha256': '0' * 64}]}], 'packs': [], 'models': []}
+        self.assertIsNotNone(manifest.validate(entry('https://github.com/ignFT37/Lastbook-ES/releases/download/v1.0.0/Lastbook-Map-ES-RI.zip')))
+        self.assertIsNotNone(manifest.validate(entry('https://downloads.lastbook.org/maps/Lastbook-Map-ES-RI.zip')))
+        self.assertIsNone(manifest.validate(entry('https://release-assets.githubusercontent.com/x')))     # reached by redirect, never named
+        self.assertIsNone(manifest.validate(entry('https://evil.com/Lastbook-Map-ES-RI.zip')))
+        model = {'version': 1, 'maps': [], 'packs': [], 'models': [{'id': 'm', 'file': 'm.gguf', 'url': 'https://github.com/x/y/m.gguf', 'size': 1,
+                                                                     'sha256': '1' * 64, 'memory_bytes': 1}]}
+        self.assertIsNone(manifest.validate(model))
+
     def test_no_proxy(self):
         """http.client takes no proxy from the environment: a request with HTTPS_PROXY set still goes to the host named."""
         import inspect
@@ -390,7 +416,7 @@ class Downloads(Base):
 
     def test_roots_only(self):
         ctx = download.tls_context()
-        self.assertEqual(ctx.cert_store_stats()['x509_ca'], 11)      # roots.pem and nothing from the system
+        self.assertEqual(ctx.cert_store_stats()['x509_ca'], 15)      # roots.pem and nothing from the system (Lastbook ES: 11 + 4 for GitHub)
         self.assertEqual(ctx.minimum_version, ssl.TLSVersion.TLSv1_2)
         self.assertTrue(ctx.check_hostname)
         text = download.roots_path().read_text()
@@ -952,6 +978,35 @@ class Maps(Base):
         self.assertTrue((lib / 'library-data/catalog.json').is_file())
         self.assertEqual(self.setup('manage', current=lib, manifest=mf).current_info()['map'], 'CA')
 
+    def test_community_map_with_its_addresses(self):
+        """Lastbook ES: a community's zip holds its address index (derived/geo/addresses/ES.sqlite) and the aerial photos besides the
+        usual map files. They are part of the map set: installed with it, listed by it, replaced with it."""
+        names = {'derived/geo/map.sqlite': os.urandom(30_000), 'derived/geo/places.sqlite': os.urandom(9_000),
+                 'derived/geo/aerial.sqlite': os.urandom(40_000), 'derived/geo/national-status.json': b'{"state":"complete"}',
+                 'derived/geo/socal-cells.json': b'[]', 'derived/geo/addresses/ES.sqlite': os.urandom(50_000)}
+        names['map-set.json'] = json.dumps({'name': 'ES-RI', 'files': {k: len(v) for k, v in names.items()}}).encode()
+        zpath = self.tmp / 'Lastbook-Map-ES-RI.zip'
+        with zipfile.ZipFile(zpath, 'w', zipfile.ZIP_STORED) as z:
+            for k, v in names.items():
+                z.writestr('LastbookData/' + k, v)
+        data = zpath.read_bytes()
+        self.files.data['Lastbook-Map-ES-RI.zip'] = data
+        m = self.manifest().current
+        m['maps'] = [{'id': 'ES-RI', 'title': 'La Rioja', 'kind': 'community', 'includes': 'x', 'installed_bytes': sum(map(len, names.values())),
+                      'download_bytes': len(data), 'available': True,
+                      'files': [{'name': 'Lastbook-Map-ES-RI.zip', 'url': f'{self.base}/Lastbook-Map-ES-RI.zip', 'size': len(data), 'sha256': sha(data), 'kind': 'zip'}]}]
+        s = self.setup(manifest=manifest.Manifest(bundled=m, remote=None, allowed=ALLOWED, context=self.ctx))
+        self.assertEqual([i['kind'] for i in s.start('small', False, map_id='ES-RI')['items']], ['pack', 'map'])
+        self.assertEqual(self.wait(s)['state'], 'done')
+        lib, _ = api.startup(self.settings)
+        self.assertEqual(install.map_name(lib), 'ES-RI')
+        for k, v in names.items():
+            self.assertEqual((lib / k).read_bytes(), v, k)
+        self.assertEqual(set(install.map_files(lib)), set(names))
+        self.assertTrue(install.map_member('derived/geo/addresses/ES.sqlite'))
+        self.assertFalse(install.map_member('derived/geo/addresses/AR.sqlite'))      # a US state's index is not part of a Spanish map
+        self.assertFalse(install.map_member('derived/geo/addresses/ES.sqlite-journal.exe'))
+
     def test_map_only_in_manage_mode(self):
         mf, files = self.map_manifest()
         cur = self.parent / 'LastbookData'
@@ -1067,6 +1122,100 @@ class Maps(Base):
         mf, _ = self.map_manifest()
         merged = manifest.merge(mf.current, {**mf.current, 'maps': []})
         self.assertEqual([x['id'] for x in merged['maps']], ['CA'])
+
+
+class SpainLibrary(unittest.TestCase):
+    """Lastbook ES: engine/setup/spain.py puts the Spanish documents into a library setup has just unpacked."""
+
+    def setUp(self):
+        from engine.setup import spain
+        self.spain = spain
+        self.tmp = shorttemp.mkdtemp('lastbook-spain-')
+        self.lib = self.tmp / 'LastbookData'
+        data = self.lib / 'library-data'
+        data.mkdir(parents=True)
+        (data / 'catalog.json').write_text(json.dumps([{'id': 'doc-1', 'title': 'Old'}]))
+        (data / 'summary.json').write_text(json.dumps({'resources': 5, 'pdfs': 2}))
+        (self.lib / 'pack.json').write_text(json.dumps({'name': 'small', 'add_ons': [], 'counts': {'pdf': 2, 'html': 1}}))
+        db = sqlite3.connect(data / 'search.sqlite')
+        db.execute('CREATE VIRTUAL TABLE pages USING fts5(doc_id, title, collection, category, path, page, body)')
+        db.execute("INSERT INTO pages VALUES ('doc-1', 'Old', 'c', 'x', 'p', 1, 'water filter')")
+        db.commit()
+        db.close()
+        rows = ['path\tbytes\tsha256\thow\tchanges']
+        for rel in ('library-data/catalog.json', 'library-data/search.sqlite', 'library-data/summary.json', 'pack.json'):
+            f = self.lib / rel
+            rows.append(f'{rel}\t{f.stat().st_size}\t{sha(f.read_bytes())}\tgenerated\t')
+        (self.lib / 'pack-manifest.tsv').write_text('\n'.join(rows) + '\n')
+        self.add = self.tmp / 'spain-library'
+        (self.add / 'documents/spain').mkdir(parents=True)
+        (self.add / 'text').mkdir()
+        self.pdf = b'%PDF-1.4 not really'
+        (self.add / 'documents/spain/guia.pdf').write_bytes(self.pdf)
+        (self.add / 'text/es-guia.txt').write_text('inundaciones en la casa\fpagina dos\f   \fpagina cuatro', encoding='utf-8')   # page 3 is blank
+        self.rec = {'id': 'es-guia', 'title': 'Guia', 'kind': 'pdf', 'collection': 'Spain', 'category': 'spain-flood', 'path': 'documents/spain/guia.pdf',
+                    'bytes': len(self.pdf), 'sha256': sha(self.pdf), 'pages': 4, 'text_path': 'text/es-guia.txt'}
+        self.write_spec()
+
+    def write_spec(self, rec=None):
+        (self.add / 'spain-library.json').write_text(json.dumps({'version': 1, 'records': [rec or self.rec], 'added': {
+            'resources': 1, 'pdfs': 1, 'pdf_pages': 4, 'document_bytes': len(self.pdf), 'counts.pdf': 1}}))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def load(self, rel):
+        return json.loads((self.lib / rel).read_text(encoding='utf-8'))
+
+    def test_adds_the_documents(self):
+        self.assertEqual(self.spain.add_library(self.lib, self.add), 1)
+        data = self.lib / 'library-data'
+        self.assertEqual([r['id'] for r in self.load('library-data/catalog.json')], ['doc-1', 'es-guia'])
+        self.assertEqual((data / 'documents/spain/guia.pdf').read_bytes(), self.pdf)
+        self.assertTrue((data / 'text/es-guia.txt').is_file())
+        db = sqlite3.connect(data / 'search.sqlite')
+        self.assertEqual(db.execute("SELECT page FROM pages WHERE pages MATCH 'inundaciones'").fetchall(), [(1,)])
+        self.assertEqual(db.execute("SELECT page FROM pages WHERE doc_id='es-guia' ORDER BY page").fetchall(), [(1,), (2,), (4,)])   # the blank page is not indexed
+        self.assertEqual(db.execute("SELECT count(*) FROM pages WHERE doc_id='doc-1'").fetchone()[0], 1)       # what was there stays
+        db.close()
+        self.assertEqual(self.load('library-data/summary.json'), {'resources': 6, 'pdfs': 3, 'pdf_pages': 4, 'document_bytes': len(self.pdf)})
+        pack = self.load('pack.json')
+        self.assertEqual((pack['add_ons'], pack['counts']['pdf'], pack['counts']['html']), (['spain'], 3, 1))
+        self.assertEqual(self.load('library-data/spain-addon.json')['ids'], ['es-guia'])
+
+    def test_pack_manifest_stays_true(self):
+        """Repair compares every library file with pack-manifest.tsv: the rows of what changed, and of what was added, are right."""
+        self.spain.add_library(self.lib, self.add)
+        rows = [l.split('\t') for l in (self.lib / 'pack-manifest.tsv').read_text().splitlines()[1:]]
+        by = {r[0]: r for r in rows}
+        for rel in ('library-data/catalog.json', 'library-data/search.sqlite', 'library-data/summary.json', 'pack.json',
+                    'library-data/documents/spain/guia.pdf', 'library-data/text/es-guia.txt', 'library-data/spain-addon.json'):
+            f = self.lib / rel
+            self.assertIn(rel, by)
+            self.assertEqual((int(by[rel][1]), by[rel][2]), (f.stat().st_size, sha(f.read_bytes())), rel)
+
+    def test_twice_is_harmless(self):
+        self.assertEqual(self.spain.add_library(self.lib, self.add), 1)
+        self.assertEqual(self.spain.add_library(self.lib, self.add), 1)
+        self.assertEqual(len(self.load('library-data/catalog.json')), 2)
+        self.assertEqual(self.load('library-data/summary.json')['resources'], 6)
+
+    def test_a_damaged_file_adds_nothing(self):
+        (self.add / 'documents/spain/guia.pdf').write_bytes(b'%PDF-1.4 tampered!!')
+        with self.assertRaises(ValueError):
+            self.spain.add_library(self.lib, self.add)
+        self.assertEqual(len(self.load('library-data/catalog.json')), 1)
+        self.assertFalse((self.lib / 'library-data/documents/spain').exists())
+
+    def test_paths_stay_inside_the_library(self):
+        for bad in ('../../outside.pdf', '/etc/passwd', 'C:/x.pdf', 'documents\\..\\x.pdf'):
+            with self.assertRaises(ValueError, msg=bad):
+                self.write_spec({**self.rec, 'path': bad})
+                self.spain.add_library(self.lib, self.add)
+
+    def test_no_add_on_adds_nothing(self):
+        self.assertEqual(self.spain.add_library(self.lib, self.tmp / 'nothing-here'), 0)
+        self.assertEqual(len(self.load('library-data/catalog.json')), 1)
 
 
 class AddressIndexes(Maps):

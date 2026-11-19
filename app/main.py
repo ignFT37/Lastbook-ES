@@ -34,15 +34,17 @@ ASK = 'Lastbook needs its library folder, called LastbookData. Unzip the library
 
 
 def app_folders():
-    """(settings, this computer's app data): roaming and local on Windows, one place on a Mac, XDG's config and data folders on Linux."""
+    """(settings, this computer's app data): roaming and local on Windows, one place on a Mac, XDG's config and data folders on Linux.
+    Lastbook ES keeps them under APP_DIR, not 'Lastbook', so it never reads or changes the official app's settings or library."""
+    from engine.setup import APP_DIR
     if sys.platform.startswith('linux'):
         home = Path.home()
-        return (Path(os.environ.get('XDG_CONFIG_HOME') or home / '.config') / 'Lastbook',
-                Path(os.environ.get('XDG_DATA_HOME') or home / '.local' / 'share') / 'Lastbook')
+        return (Path(os.environ.get('XDG_CONFIG_HOME') or home / '.config') / APP_DIR,
+                Path(os.environ.get('XDG_DATA_HOME') or home / '.local' / 'share') / APP_DIR)
     if sys.platform == 'win32':
         local = Path(os.environ.get('LOCALAPPDATA') or Path.home() / 'AppData' / 'Local')
-        return Path(os.environ.get('APPDATA') or Path.home() / 'AppData' / 'Roaming') / 'Lastbook', local / 'Lastbook'
-    mine = Path.home() / 'Library' / 'Application Support' / 'Lastbook'
+        return Path(os.environ.get('APPDATA') or Path.home() / 'AppData' / 'Roaming') / APP_DIR, local / APP_DIR
+    mine = Path.home() / 'Library' / 'Application Support' / APP_DIR
     return mine, mine
 
 
@@ -152,7 +154,8 @@ def default_choice():
     if sys.platform == 'win32':
         from engine.setup import api as setup_api, install
         if setup_api.path_too_deep(parent / DATA_NAME):
-            short = Path((os.environ.get('SystemDrive') or 'C:') + '\\') / 'Lastbook'
+            from engine.setup import APP_DIR
+            short = Path((os.environ.get('SystemDrive') or 'C:') + '\\') / APP_DIR
             if install.private_folder(short):
                 return short, f'Saves to {short} because your user folder’s path is too long for the library’s longest file names.'
     return parent, None
@@ -221,7 +224,8 @@ def pick_folder(files=False):
 
 def linux_dirs():
     """(data, cache) for WebKit's own storage on Linux: the page's saved settings, and what it can rebuild."""
-    return str(app_folders()[1]), str(Path(os.environ.get('XDG_CACHE_HOME') or Path.home() / '.cache') / 'Lastbook')
+    from engine.setup import APP_DIR
+    return str(app_folders()[1]), str(Path(os.environ.get('XDG_CACHE_HOME') or Path.home() / '.cache') / APP_DIR)
 
 
 def relaunch():
