@@ -15,7 +15,8 @@ from pathlib import Path
 import osmium
 
 HERE = Path(__file__).resolve().parent.parent
-SRC = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / 'library-data/geography/openstreetmap/us-latest.osm.pbf'
+# Lastbook ES: several extracts may be given (Spain's peninsula and the Canary Islands come apart); each is read in turn
+SRCS = [Path(a) for a in sys.argv[1:]] or [HERE / 'library-data/geography/openstreetmap/us-latest.osm.pbf']
 OUT = Path(os.environ.get('BUILDINGS_OUT', HERE / 'derived/geo/buildings.sqlite'))
 WORLD = 2 ** 30
 STOREY = 3.2
@@ -38,11 +39,10 @@ def metres(v):
 def main():
     t0 = time.time()
     tiles, n, seen = {}, 0, 0
-    fp = (osmium.FileProcessor(str(SRC), osmium.osm.NODE | osmium.osm.WAY)
-          .with_locations('flex_mem')
-          .with_filter(osmium.filter.EntityFilter(osmium.osm.WAY))
-          .with_filter(osmium.filter.KeyFilter('height', 'building:levels')))  # cheap C++ pre-filter
-    for w in fp:
+    for w in (w for src in SRCS for w in (osmium.FileProcessor(str(src), osmium.osm.NODE | osmium.osm.WAY)
+                                          .with_locations('flex_mem')
+                                          .with_filter(osmium.filter.EntityFilter(osmium.osm.WAY))
+                                          .with_filter(osmium.filter.KeyFilter('height', 'building:levels')))):  # cheap C++ pre-filter
         tags = w.tags
         if 'building' not in tags and 'building:part' not in tags:
             continue
@@ -89,6 +89,10 @@ def main():
         if n % 200000 == 0:
             print(f'{n:,} buildings with heights, {time.time() - t0:.0f}s', flush=True)
     db = sqlite3.connect(OUT)
+    # a file made only from OSM (Lastbook ES) still needs the tables server.py reads, even if empty
+    db.executescript('CREATE TABLE IF NOT EXISTS bldg(x INT, y INT, part INT, n INT, data BLOB, PRIMARY KEY(x,y,part)) WITHOUT ROWID;'
+                     'CREATE TABLE IF NOT EXISTS bldg_socal(x INT, y INT, part INT, n INT, data BLOB, PRIMARY KEY(x,y,part)) WITHOUT ROWID;'
+                     'CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);')
     db.executescript('DROP TABLE IF EXISTS bldg_osm; CREATE TABLE bldg_osm(x INT, y INT, n INT, data BLOB, PRIMARY KEY(x,y)) WITHOUT ROWID;')
     db.executemany('INSERT INTO bldg_osm VALUES (?,?,?,?)', ((x, y, 0, zlib.compress(b.tobytes(), 6)) for (x, y), b in tiles.items()))
     db.execute("INSERT OR REPLACE INTO meta VALUES ('osm_heights', ?)", (str(n),))

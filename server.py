@@ -1056,7 +1056,7 @@ HELP = {'hospital': 'Hospital', 'clinic': 'Clinic', 'doctors': 'Doctor', 'pharma
         'dentist': 'Dentist', 'fire_station': 'Fire station', 'police': 'Police', 'drinking_water': 'Drinking water tap',
         'fountain': 'Fountain (not necessarily drinkable)', 'water_tower': 'Water tower', 'water_works': 'Water works',
         'spring': 'Spring (untested)', 'toilet': 'Public toilet', 'shelter': 'Shelter (structure)',
-        'alpine_hut': 'Mountain hut / refuge',
+        'alpine_hut': 'Mountain hut / refuge', 'wilderness_hut': 'Unstaffed hut / refuge', 'defibrillator': 'Defibrillator (AED)',
         'community_centre': 'Community centre', 'town_hall': 'Town hall', 'school': 'School', 'library': 'Library',
         'supermarket': 'Supermarket', 'convenience': 'Convenience store', 'doityourself': 'Hardware / DIY store',
         'hardware': 'Hardware store', 'garden_centre': 'Garden centre', 'post_office': 'Post office',
@@ -1066,7 +1066,7 @@ HELP = {'hospital': 'Hospital', 'clinic': 'Clinic', 'doctors': 'Doctor', 'pharma
         'college': 'College', 'university': 'University', 'kindergarten': 'Kindergarten', 'beach': 'Beach',
         'embassy': 'Embassy', 'mineral': 'Recorded mineral / mine', 'oil_gas_well': 'Recorded oil / gas well',
         'boat_launch': 'Boating facility', 'fish_stocking': 'Fish-stocking record',
-        'dam': 'Dam (National Inventory of Dams)', 'reservoir': 'Reservoir', 'lake': 'Lake or pond', 'pond': 'Pond',
+        'dam': 'Dam', 'reservoir': 'Reservoir', 'lake': 'Lake or pond', 'pond': 'Pond',
         'orchard': 'Orchard', 'vineyard': 'Vineyard', 'berries': 'Berry field', 'perennial_veg': 'Asparagus field'}
 
 
@@ -1150,6 +1150,15 @@ def _resource_summary(cls, detail):
         out.insert(0, 'NOT drinking water')
     if detail.get('area_acres'):
         out.insert(0, f"{detail['area_acres']:,} acres")
+    # Lastbook ES rows (tools/build_water_es.py): hectares, cubic hectometres, metres, nearest town
+    if detail.get('area_ha'):
+        out.insert(0, f"{detail['area_ha']:,} ha")
+    if detail.get('capacity_hm3'):
+        out.append(f"{detail['capacity_hm3']} hm³")
+    if detail.get('height_m'):
+        out.append(f"{detail['height_m']} m high")
+    if detail.get('near'):
+        out.append(f"near {detail['near']}")
     if detail.get('crop_acres'):
         out.append(f"about {round(detail['crop_acres']):,} acres in this block")
     if detail.get('normal_storage_af'):
@@ -1357,7 +1366,8 @@ def haversine(la1, lo1, la2, lo2):
     return d, ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'][int((b + 22.5) // 45) % 8]
 
 
-WATER_WORDS = {'lake', 'lakes', 'reservoir', 'res', 'dam', 'pond', 'ponds'}
+WATER_WORDS = {'lake', 'lakes', 'reservoir', 'res', 'dam', 'pond', 'ponds',
+               'embalse', 'pantano', 'presa', 'lago', 'laguna', 'balsa', 'estany', 'encoro', 'urtegia'}  # Lastbook ES
 
 
 def near_bonus(near, lat, lon):
@@ -1407,16 +1417,19 @@ def water_places(q, limit=10, near=None):
     for kind, name, lat, lon, raw in rows:
         d = json.loads(raw or '{}')
         text = (name + ' ' + (d.get('other_names') or '')).lower()
+        area = d.get('area_acres') or d.get('surface_acres') or (d.get('area_ha') and d['area_ha'] * 2.471) or 1
         score = (sum(w in text for w in words) * 2 + (core[0] in text) + (kind != 'dam') + (name.lower() == q.lower().strip()) * 3
-                 + math.log10(float(d.get('area_acres') or d.get('surface_acres') or 1) + 1) / 3 + near_bonus(near, lat, lon))
-        where = ', '.join(x for x in (d.get('county') and d['county'] + ' County', d.get('state')) if x)
+                 + math.log10(float(area) + 1) / 3 + near_bonus(near, lat, lon))
+        spain = lon > -30  # Lastbook ES rows: town and community, kilometres
+        where = ', '.join(x for x in (d.get('county') and d['county'] + ' County', d.get('state'),
+                                      d.get('near') and 'near ' + d['near'], d.get('region')) if x)
         extra = f" · also called {d['other_names']}" if d.get('other_names') else ''
         away = ''
         if near:
             km = haversine(near[0], near[1], lat, lon)[0]
-            away = f" · {km / 1.609:,.0f} mi away" if km >= 1.6 else ' · nearby'
-        out.append((score, {'name': name, 'kind': {'dam': 'Dam', 'reservoir': 'Reservoir', 'lake': 'Lake'}[kind],
-                            'detail': (where or 'United States') + extra + away, 'lat': lat, 'lon': lon, 'source': 'water', 'onMap': True}))
+            away = (f" · {km:,.0f} km away" if km >= 1 else ' · nearby') if spain else (f" · {km / 1.609:,.0f} mi away" if km >= 1.6 else ' · nearby')
+        out.append((score, {'name': name, 'kind': {'dam': 'Dam', 'reservoir': 'Reservoir', 'lake': 'Lake', 'pond': 'Pond'}[kind],
+                            'detail': (where or ('Spain' if spain else 'United States')) + extra + away, 'lat': lat, 'lon': lon, 'source': 'water', 'onMap': True}))
     out.sort(key=lambda t: -t[0])
     return [o for _, o in out[:limit]]
 
@@ -1602,6 +1615,21 @@ def map_info():
         n = m.get('count') or m.get('spain')
         if n:
             spain.append({'label': label, 'status': f'{int(n):,} records · used by "Find"'})
+    try:  # tools/build_water_es.py
+        w_es = json.loads(dict(sqlite3.connect(ro_uri(WATERDB), uri=True).execute("SELECT key,value FROM meta WHERE key='es'").fetchall()).get('es') or '{}') if WATERDB.exists() else {}
+    except (sqlite3.Error, ValueError):
+        w_es = {}
+    if w_es:
+        spain.append({'label': 'Spain: reservoirs, lakes, ponds and dams (OpenStreetMap' + ('; dams: © Ministerio para la Transición Ecológica y el Reto Demográfico' if w_es.get('miteco_dams') else '') + ')',
+                      'status': f"{w_es.get('reservoir', 0):,} reservoirs, {w_es.get('lake', 0):,} lakes, {w_es.get('pond', 0):,} ponds, {w_es.get('dam', 0):,} dams"})
+    if AERIALDB.exists():
+        try:
+            a_es = dict(sqlite3.connect(ro_uri(AERIALDB), uri=True).execute('SELECT key,value FROM meta').fetchall())
+        except sqlite3.Error:
+            a_es = {}
+        if 'Spain' in (a_es.get('area') or ''):  # tools/fetch_aerial_es.py
+            spain.append({'label': 'Spain: aerial photos (PNOA cedido por © Instituto Geográfico Nacional, CC BY 4.0)',
+                          'status': a_es['area'] + ('' if a_es.get('built') else ' · downloading')})
     geo[0:0] = spain
     geo.append({'label': 'US place names (USGS GNIS) and Census 2025 ZIP-code and county centres', 'status': 'Used by "Find a place", together with named lakes, reservoirs and dams', 'path': 'geography/geographic-names/'})
     if WATERDB.exists():
@@ -1665,7 +1693,7 @@ def map_info():
                         'status': m.get('area', '') + ('' if m.get('built') else ' · building')})
         except (sqlite3.Error, ValueError, KeyError):
             pass
-    if AERIALDB.exists():
+    if AERIALDB.exists() and not any('aerial photos' in d['label'] for d in spain):
         geo.append({'label': 'Aerial photos, whole US (USGS The National Map: USDA NAIP and other orthoimagery)', 'status': 'Zoom 0-15 nationwide, 16 in California and towns · downloading'})
     pack = pack_info()
     extra = {'aerial': has_aerial()}
@@ -1694,7 +1722,13 @@ def pack_datasets(have, spain=()):
             dem_es = None
         out.append({'label': 'Elevation (USGS 3DEP' + (f'; Spain: {dem_es}' if dem_es else '') + ')',
                     'status': 'Shaded relief and contour lines in Spain' if dem_es else 'Shaded relief. Contour lines only where this map has fine detail.' if have['detail'] else 'Shaded relief at broad zoom levels'})
-    if BLDGDB.exists():
+    if BLDGDB.exists() and spain:  # Lastbook ES: buildings.sqlite holds only OSM heights (tools/build_osm_heights.py)
+        try:
+            n3d = dict(sqlite3.connect(ro_uri(BLDGDB), uri=True).execute('SELECT key,value FROM meta').fetchall()).get('osm_heights')
+        except sqlite3.Error:
+            n3d = None
+        out.append({'label': 'Spain: building heights for the 3D view (OpenStreetMap, ODbL)', 'status': f'{int(n3d):,} buildings with a height or storey count' if n3d else 'Converting'})
+    elif BLDGDB.exists():
         out.append({'label': 'Building outlines (Microsoft Global ML Building Footprints, ODbL; OpenStreetMap)', 'status': f'For {area}, shown from street level zoom'})
     if CROPDB.exists():
         out.append({'label': 'Orchards, vineyards and berry fields (USDA Cropland Data Layer)', 'status': f'For {area}'})

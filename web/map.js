@@ -26,9 +26,10 @@ const MapView = (() => {
     ['fire', 'Fire stations', 'F', '#ef6c00', 'fire_station', 'help'],
     ['police', 'Police', 'P', '#1a4f9c', 'police', 'help'],
     ['shelter', 'Shelters (structures)', '⌂', '#455a64', 'shelter', 'help'],
-    ['hut', 'Mountain huts & refuges', 'R', '#5d4037', 'alpine_hut', 'help'],
+    ['hut', 'Mountain huts & refuges', 'R', '#5d4037', 'alpine_hut,wilderness_hut', 'help'],
+    ['aed', 'Defibrillators (AED)', '♥', '#b71c1c', 'defibrillator', 'help'],
     ['community', 'Community centers, town halls & libraries', 'C', '#8e24aa', 'community_centre,town_hall,library', 'help'],
-    ['water', 'Drinking-water taps', 'W', '#0277bd', 'drinking_water', 'water'],
+    ['water', 'Drinking water (taps & fountains)', 'W', '#0277bd', 'drinking_water', 'water'],
     ['reservoir', 'Reservoirs & named lakes', '≈', '#1565c0', 'reservoir,lake', 'water'],
     ['pond', 'Unnamed ponds (1+ acre, year-round)', '≈', '#5e9fd0', 'pond', 'water'],
     ['dam', 'Dams (with storage & purpose)', 'D', '#6d4c41', 'dam', 'water'],
@@ -47,8 +48,8 @@ const MapView = (() => {
   ].map(([id, label, sym, col, cls, group]) => ({ id, label, sym, col, cls: cls.split(','), group }));
   const GROUPS = [['help', 'Emergency help'], ['water', 'Water'], ['supply', 'Supplies & camping'], ['food', 'Food that keeps growing (2025 crop maps)'], ['resource', 'Natural resources (historical records)']];
   const BY_CLS = {}; for (const l of LAYERS) for (const c of l.cls) BY_CLS[c] = l;
-  const DEFAULT_LAYERS = ['hospital', 'clinic', 'pharmacy', 'fire', 'police', 'shelter', 'hut', 'water', 'reservoir', 'fish', 'boat'];
-  const PRESETS = [['Emergency', ['hospital', 'clinic', 'dentist', 'pharmacy', 'fire', 'police', 'shelter', 'hut', 'community']], ['Water', ['water', 'spring', 'reservoir', 'pond', 'dam', 'fish', 'boat']],
+  const DEFAULT_LAYERS = ['hospital', 'clinic', 'pharmacy', 'fire', 'police', 'shelter', 'hut', 'aed', 'water', 'reservoir', 'fish', 'boat'];
+  const PRESETS = [['Emergency', ['hospital', 'clinic', 'dentist', 'pharmacy', 'fire', 'police', 'shelter', 'hut', 'aed', 'community']], ['Water', ['water', 'spring', 'reservoir', 'pond', 'dam', 'fish', 'boat']],
     ['Supplies', ['food', 'hardware', 'fuel', 'camp']], ['Food trees', ['orchard', 'vineyard', 'berries']], ['Resources', ['fish', 'boat', 'mineral', 'well']], ['All', LAYERS.map(l => l.id)]];
   const LEGACY = { all_resources: ['fish', 'boat', 'mineral', 'well'], mineral: ['mineral'], oil_gas_well: ['well'], fish_stocking: ['fish'], boat_launch: ['boat'] };
   const FIELD = { commod1: 'Commodity', commod2: 'Also', commod3: 'Also', ore: 'Ore', dev_stat: 'Recorded status', oper_type: 'Operation', yr_lst_prd: 'Last production year',
@@ -58,18 +59,20 @@ const MapView = (() => {
     normal_storage_af: 'Normal storage (acre-ft)', max_storage_af: 'Max storage (acre-ft)', surface_acres: 'Surface (acres)', height_ft: 'Height (ft)', year: 'Built',
     dam_type: 'Dam type', hazard: 'Downstream hazard if it failed', condition: 'Condition', status: 'Status', area_acres: 'Area (acres)', water_type: 'Water present',
     reservoir_type: 'Reservoir type', crop: 'Crop', crop_acres: 'Acres of it in this ~600 m block', perennial_acres: 'All tree, vine & berry acres in block', year: 'Satellite crop map year',
+    area_ha: 'Area (ha)', capacity_hm3: 'Capacity (hm³)', height_m: 'Height (m)', category: 'Risk category (A is highest)', province: 'Province', region: 'Community', near: 'Nearest town',
     FUEL_SALES: 'Fuel sales', NO_OF_RAMP_LANE_USE_ONE_TIME: 'Ramp lanes', FISH_CLEANING: 'Fish cleaning', Comments: 'Notes', Website: 'Website' };
   const CAVEAT = { mineral: 'USGS mineral record: an occurrence or past mine, not proof of recoverable ore, access or safety. Old workings can be deadly.',
     oil_gas_well: 'State well record. Most are plugged or idle; never approach an unsealed well head.', fish_stocking: 'A past stocking record — it does not confirm fish are present now.',
     boat_launch: 'Facility survey data; check current access.',
-    dam: 'National Inventory of Dams record. Keep away from spillways and outlets — currents and sudden releases drown people.',
+    dam: 'Dam record (US National Inventory of Dams; in Spain, MITECO\'s inventory or OpenStreetMap). Keep away from spillways and outlets — currents and sudden releases drown people.',
     reservoir: 'Surface water: filter, then boil or disinfect before drinking. Skip water with green scum or discolouration (toxic algae; boiling won’t remove it).',
     lake: 'Surface water: filter, then boil or disinfect before drinking. Skip water with green scum or discolouration (toxic algae; boiling won’t remove it).',
     orchard: 'USDA 2025 satellite crop map: usually right for big orchards, sometimes wrong for small ones. Trees and vines keep producing for decades but need water in dry regions and winter pruning. Private farmland — ask first.',
     vineyard: 'USDA 2025 satellite crop map: usually right for big orchards, sometimes wrong for small ones. Trees and vines keep producing for decades but need water in dry regions and winter pruning. Private farmland — ask first.',
     berries: 'USDA 2025 satellite crop map: usually right for big orchards, sometimes wrong for small ones. Trees and vines keep producing for decades but need water in dry regions and winter pruning. Private farmland — ask first.',
     perennial_veg: 'USDA 2025 satellite crop map: usually right for big orchards, sometimes wrong for small ones. Trees and vines keep producing for decades but need water in dry regions and winter pruning. Private farmland — ask first.',
-    pond: 'Small ponds are often livestock ponds with manure runoff: treat the water and cook any fish thoroughly. Small ponds can be fished out in weeks.', spring: 'Mapped spring — treat the water before drinking.', drinking_water: 'Mapped tap; may be off in an emergency.' };
+    pond: 'Small ponds are often livestock ponds with manure runoff: treat the water and cook any fish thoroughly. Small ponds can be fished out in weeks.', spring: 'Mapped spring — treat the water before drinking.', drinking_water: 'Mapped tap or drinking fountain; may be off in an emergency.',
+    defibrillator: 'Mapped by volunteers: it may be inside a building with opening hours. Call 112 first; they can guide you and tell you where the nearest one is.' };
   let st = null, world = null, geography = null;
 
   const load = (k, d) => { try { return JSON.parse(localStorage.getItem('sg.' + k)) ?? d } catch { return d } };
@@ -119,7 +122,7 @@ const MapView = (() => {
       <div class="map-card" id="card" hidden></div>
       <div class="map-tip" id="tip" hidden></div>
       <div class="map-status" id="mstatus" aria-live="polite"></div>
-      <div class="mapelev" id="melev" hidden></div><div class="mapscale" id="mscale"></div><div class="mapattr">© OpenStreetMap contributors · Overture Maps (scne.es, CC BY 4.0) · GeoNames · Copernicus DEM © DLR, Airbus DS · Microsoft buildings · USGS · USDA · NOAA · USACE · CDFW · CalGEM · Natural Earth</div>
+      <div class="mapelev" id="melev" hidden></div><div class="mapscale" id="mscale"></div><div class="mapattr">© OpenStreetMap contributors · Overture Maps (scne.es, CC BY 4.0) · GeoNames · Copernicus DEM © DLR, Airbus DS · PNOA cedido por © IGN · © MITECO · Microsoft buildings · USGS · USDA · NOAA · USACE · CDFW · CalGEM · Natural Earth</div>
     </div>
     <div class="maptools">
       <section class="panel"><h2>Nearest to the map center</h2><p class="small muted" style="margin:0 0 4px">For the layers you have on. Straight-line distance, not by road.</p><div class="nearres" id="near" aria-live="polite"></div></section>
@@ -249,7 +252,7 @@ const MapView = (() => {
     box.innerHTML = `<div class="layers-head"><b>Show on map</b><button class="x" aria-label="Close layers">×</button></div>
       ${st.have && !st.have.size ? '' : `<div class="presets">${PRESETS.map(([n]) => `<button data-p="${n}">${n}</button>`).join('')}<button data-p="">None</button></div>`}
       <fieldset class="style"><legend>Map style</legend>
-        ${st.noAerial ? '' : `<label><input type="checkbox" data-style="aerial"${st.style.aerial ? ' checked' : ''}><i class="msym style-ico">🛰</i><span>Aerial photos (USGS / USDA)</span></label>`}
+        ${st.noAerial ? '' : `<label><input type="checkbox" data-style="aerial"${st.style.aerial ? ' checked' : ''}><i class="msym style-ico">🛰</i><span>Aerial photos (${metric() ? 'PNOA, IGN' : 'USGS / USDA'})</span></label>`}
         <label><input type="checkbox" data-style="relief"${st.style.relief ? ' checked' : ''}><i class="msym style-ico">⛰</i><span>Shaded relief (hills &amp; valleys)</span></label>
         ${st.noContours ? '' : `<label><input type="checkbox" data-style="contours"${st.style.contours ? ' checked' : ''}><i class="msym style-ico">〰</i><span>Contour lines (from zoom 11)</span></label>`}
         ${st.have && !st.have.has('orchard') ? '' : `<label><input type="checkbox" data-style="crops"${st.style.crops !== false ? ' checked' : ''}><i class="msym style-ico" style="background:#3f7a2a">♣</i><span>Orchard &amp; vineyard areas (coloured)</span></label>`}</fieldset>
