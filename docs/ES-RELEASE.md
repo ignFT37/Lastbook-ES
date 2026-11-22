@@ -46,7 +46,8 @@ and the two hosts GitHub redirects release downloads to. `engine/setup/roots.pem
    It makes `OUT\LastbookES-<version>-Setup.exe`. It installs for this user only, with no administrator prompt, into
    `%LOCALAPPDATA%\Programs\LastbookES`, with its own Start menu shortcut, Apps & features entry (`HKCU\...\Uninstall\LastbookES`) and
    uninstaller (`Uninstall Lastbook ES.exe`), so the official Lastbook is never touched. The names and the version come from
-   `packaging/lastbook_setup.py`. The version stays Lastbook's (1.1.11): About's "Check for updates" compares it with the official app's.
+   `packaging/lastbook_setup.py`. The version is Lastbook ES's own (the release tag without its "v"; 1.1.11 in v1.0.0, which still
+   checked the official site): About's "Check for updates" (`engine/update.py`) reads `app-v1.json` from this fork's latest release.
 
 ## Publish
 
@@ -54,6 +55,9 @@ Upload `LastbookES-<version>-Setup.exe` and the 19 `Lastbook-Map-ES-*.zip` files
 zip's name, size and SHA-256 is in the manifest inside the app, so a zip that changes needs a new build (of the app and the installer).
 `manifest-v1.json` (from `dist\LastbookES\_internal\setup`) goes to the release too: setup reads the latest release's copy once when it
 opens online, and it can add maps but never change a pinned one. A `SHA256SUMS.txt` of every asset lets people check their download.
+Every release also carries `app-v1.json`, which the update check reads (display information only, nothing is downloaded):
+`{"version": 1, "published": "<date>", "windows": {"version": "<version>", "min_os": "10.0"}}`. Map zips that have not changed need no
+new upload: the manifest may keep pointing at an earlier release's assets, which are never deleted.
 
 ## Try it with no internet
 

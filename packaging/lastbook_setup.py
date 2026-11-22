@@ -23,7 +23,7 @@ import winreg
 import zipfile
 from pathlib import Path
 
-VERSION = '1.1.11'
+VERSION = '1.0.1'                   # Lastbook ES's own version (the release tag): About's update check reads this fork's releases
 NAME = 'LastbookES'                 # the install folder and the Apps & features key (the official app's are 'Lastbook')
 TITLE = 'Lastbook ES'               # what the person reads: windows, shortcuts, Apps & features
 APP_EXE = 'LastbookES.exe'

@@ -11,7 +11,8 @@
   "terremoto", "sismo", "tsunami", "maremoto", "volcán", "volcan", "ceniza", "la palma", "canarias", "nuclear",
   "central nuclear", "radiación", "yodo", "apagón", "apagon", "corte de luz", "sin luz", "guardia civil",
   "policía nacional", "bomberos", "toxicología", "intoxicación", "salvamento marítimo", "kit de emergencia",
-  "mochila de emergencia", "plan familiar", "72 horas", "primeros auxilios", "samur", "cruz roja"],
+  "mochila de emergencia", "plan familiar", "72 horas", "primeros auxilios", "samur", "cruz roja", "riesgo químico",
+  "accidente químico", "autoprotección"],
  "choices": [
   {
    "id": "llamar",
@@ -58,7 +59,10 @@
      "note": "Las evacuaciones que organizan las autoridades y por qué alejarse de cauces, barrancos y torrentes aunque no llueva donde estás."},
     {"doc": "es-fma-112cv", "page": 38,
      "label": "Si vas en coche con lluvia o viento",
-     "note": "Parar en el arcén si no hay visibilidad, no aparcar en cauces secos ni junto a ríos y abandonar el vehículo si es necesario."}
+     "note": "Parar en el arcén si no hay visibilidad, no aparcar en cauces secos ni junto a ríos y abandonar el vehículo si es necesario."},
+    {"doc": "es-cp-inundaciones-2023",
+     "label": "Guía de Protección Civil ante inundaciones",
+     "note": "La guía para la población de la Dirección General de Protección Civil y Emergencias (colección Cultura preventiva, 2023)."}
    ]
   },
   {
@@ -74,7 +78,10 @@
      "note": "Cerrar puertas, ventanas y ventilaciones, mantener la casa fresca y, al aire libre con humo o ceniza, mascarilla FFP2 y gafas."},
     {"doc": "es-incendios-sanidad", "page": 23,
      "label": "Después del incendio",
-     "note": "Ventilar cuando las autoridades lo indiquen, evitar tocar o respirar la ceniza y limpiar la vivienda."}
+     "note": "Ventilar cuando las autoridades lo indiquen, evitar tocar o respirar la ceniza y limpiar la vivienda."},
+    {"doc": "es-cp-incendios-forestales-2023",
+     "label": "Guía de Protección Civil ante incendios forestales",
+     "note": "La guía para la población de la Dirección General de Protección Civil y Emergencias (colección Cultura preventiva, 2023)."}
    ]
   },
   {
@@ -87,7 +94,10 @@
      "note": "Anexo del plan nacional: beber agua a menudo aunque no haya sed, evitar alcohol, cafeína y bebidas muy azucaradas y vigilar a los más vulnerables."},
     {"doc": "es-fma-112cv", "page": 36,
      "label": "Consejos ante olas de calor",
-     "note": "Vigilar a niños, mayores y personas sensibles, hacer comidas ligeras, beber mucha agua y exponerse al sol lo menos posible."}
+     "note": "Vigilar a niños, mayores y personas sensibles, hacer comidas ligeras, beber mucha agua y exponerse al sol lo menos posible."},
+    {"doc": "es-cp-fenomenos-meteorologicos-2023",
+     "label": "Guía de Protección Civil ante fenómenos meteorológicos adversos",
+     "note": "Protección Civil (colección Cultura preventiva, 2023): tormentas, viento, nevadas, frío y calor."}
    ]
   },
   {
@@ -103,7 +113,10 @@
      "note": "Evitar que bebés, mayores y enfermos crónicos se expongan al frío, y no salir ni desplazarse con ventisca."},
     {"doc": "es-fma-112cv", "page": 37,
      "label": "Viento fuerte y temporal en el mar",
-     "note": "Alejarse de andamios, postes y torres eléctricas, avisar al 112 si caen, y no acercarse a paseos marítimos, espigones ni acantilados."}
+     "note": "Alejarse de andamios, postes y torres eléctricas, avisar al 112 si caen, y no acercarse a paseos marítimos, espigones ni acantilados."},
+    {"doc": "es-cp-fenomenos-meteorologicos-2023",
+     "label": "Guía de Protección Civil ante fenómenos meteorológicos adversos",
+     "note": "Protección Civil (colección Cultura preventiva, 2023): tormentas, viento, nevadas, frío y calor."}
    ]
   },
   {
@@ -129,7 +142,13 @@
      "note": "Folleto del IGN: asegurar objetos que puedan caer, hacer simulacros en familia y cómo protegerse durante el temblor."},
     {"doc": "es-terremoto-tsunami-ign", "page": 1,
      "label": "Cuándo evacuar ante un tsunami",
-     "note": "Las señales para alejarse de la costa: aviso oficial, terremoto fuerte o largo cerca del mar, retirada rápida del agua o un rugido como de tren."}
+     "note": "Las señales para alejarse de la costa: aviso oficial, terremoto fuerte o largo cerca del mar, retirada rápida del agua o un rugido como de tren."},
+    {"doc": "es-cp-riesgo-sismico-2023",
+     "label": "Guía de Protección Civil ante terremotos",
+     "note": "La guía para la población ante el riesgo sísmico (colección Cultura preventiva, 2023)."},
+    {"doc": "es-cp-tsunamis-2023",
+     "label": "Guía de Protección Civil ante tsunamis",
+     "note": "La guía para la población ante el riesgo de tsunamis (colección Cultura preventiva, 2023)."}
    ]
   },
   {
@@ -139,7 +158,10 @@
    "read": [
     {"doc": "es-cenizas-canarias-2021", "page": 1,
      "label": "Si cae ceniza volcánica",
-     "note": "Recomendaciones del Gobierno de Canarias durante la erupción de La Palma (2021) ante la caída de ceniza, en situación de alerta y de emergencia."}
+     "note": "Recomendaciones del Gobierno de Canarias durante la erupción de La Palma (2021) ante la caída de ceniza, en situación de alerta y de emergencia."},
+    {"doc": "es-cp-riesgo-volcanico-2023",
+     "label": "Guía de Protección Civil ante el riesgo volcánico",
+     "note": "La guía para la población ante erupciones y caída de ceniza (colección Cultura preventiva, 2023)."}
    ]
   },
   {
@@ -155,7 +177,10 @@
      "note": "Qué suponen el control de alimentos y agua, la evacuación de la zona y la descontaminación, y por qué escuchar a las autoridades."},
     {"doc": "es-nuclear-csn-2009", "page": 21,
      "label": "Cómo se informa a la población",
-     "note": "La información previa a quienes viven cerca de una central y la que se da durante una emergencia."}
+     "note": "La información previa a quienes viven cerca de una central y la que se da durante una emergencia."},
+    {"doc": "es-cp-industrial-quimico-nuclear-2023",
+     "label": "Guía de Protección Civil: industria, riesgo químico y nuclear",
+     "note": "La guía para la población ante accidentes en la industria química y emergencias nucleares (colección Cultura preventiva, 2023)."}
    ]
   }
  ],
@@ -199,6 +224,9 @@
   {"doc": "es-primeros-auxilios-samur",
    "label": "Guía de primeros auxilios de SAMUR-Protección Civil",
    "note": "Guía completa para la población: cómo actuar, reconocer a la víctima, RCP, atragantamiento, hemorragias, quemaduras y más. Edición antigua: cita las guías de RCP de 2010."},
+  {"doc": "es-cp-autoproteccion-2023",
+   "label": "Autoprotección: guía de Protección Civil",
+   "note": "Qué es la autoprotección y para qué sirven los planes de autoprotección de edificios y actividades (colección Cultura preventiva, 2023)."},
   {"doc": "es-meteoalerta-umbrales",
    "label": "Umbrales de los avisos de AEMET por zonas",
    "note": "Tablas técnicas con los valores de lluvia, viento, nieve y temperatura que activan cada nivel de aviso en cada zona."},

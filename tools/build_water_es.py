@@ -12,6 +12,9 @@ ones first, so it can be run again. The first run keeps the original file as wat
 - Dams: the MITECO inventory (Inventario de Presas y Embalses; "© Ministerio para la Transición Ecológica y el Reto
   Demográfico", free reuse with that credit) when its shapefile is in --miteco, with owner, river, use, height and
   capacity. Otherwise, and for dams the inventory lacks, named OpenStreetMap dams.
+  The inventory's egis_presa_geoetrs89.zip (Nov 2026) is in ETRS89 / UTM zone 30N, extended to the Canaries, despite its
+  name, and in UTF-8: both are read from its .prj and .cpg. Only dams that stand: not projects, abandoned projects or dams
+  under another reservoir; one with no phase given only where OpenStreetMap also has a dam.
 Each row also says the community and the nearest town (from places.sqlite).
 """
 import argparse, json, math, re, shutil, sqlite3, sys, time, zipfile
@@ -94,8 +97,35 @@ def towns(places):
     return near
 
 
+def tm_inverse(x, y, lon0, k0, fe, fn, a=6378137.0, f=1 / 298.257222101):
+    """Transverse Mercator metres (UTM) to degrees (lon, lat) on GRS80, by Krüger's series."""
+    n = f / (2 - f)
+    big_a = a / (1 + n) * (1 + n * n / 4 + n ** 4 / 64)
+    beta = (n / 2 - 2 * n * n / 3 + 37 * n ** 3 / 96, n * n / 48 + n ** 3 / 15, 17 * n ** 3 / 480)
+    delta = (2 * n - 2 * n * n / 3 - 2 * n ** 3, 7 * n * n / 3 - 8 * n ** 3 / 5, 56 * n ** 3 / 15)
+    xi, eta = (y - fn) / (k0 * big_a), (x - fe) / (k0 * big_a)
+    xi2 = xi - sum(b * math.sin(2 * j * xi) * math.cosh(2 * j * eta) for j, b in enumerate(beta, 1))
+    eta2 = eta - sum(b * math.cos(2 * j * xi) * math.sinh(2 * j * eta) for j, b in enumerate(beta, 1))
+    chi = math.asin(math.sin(xi2) / math.cosh(eta2))
+    lat = chi + sum(d * math.sin(2 * j * chi) for j, d in enumerate(delta, 1))
+    return lon0 + math.degrees(math.atan2(math.sinh(eta2), math.cos(xi2))), math.degrees(lat)
+
+
+def to_degrees(prj):
+    """(x, y) -> (lon, lat) for a shapefile's .prj text: degrees stay, Transverse Mercator (UTM) is converted."""
+    if not prj.lstrip().upper().startswith('PROJCS'):
+        return lambda x, y: (x, y)
+    if 'TRANSVERSE_MERCATOR' not in prj.upper():
+        sys.exit(f'Unexpected projection in the MITECO shapefile: {prj[:160]}')
+
+    def par(name):
+        return float(re.search(r'PARAMETER\["%s",\s*(-?[\d.]+)\]' % name, prj, re.I).group(1))
+    lon0, k0, fe, fn = par('Central_Meridian'), par('Scale_Factor'), par('False_Easting'), par('False_Northing')
+    return lambda x, y: tm_inverse(x, y, lon0, k0, fe, fn)
+
+
 def shapefile_rows(folder, stem):
-    """Records of the MITECO shapefile whose name starts with stem, as (fields dict, lon, lat, rings)."""
+    """Records of the MITECO shapefile whose name starts with stem, as (fields dict, lon, lat, rings), in degrees."""
     import shapefile
     for z in sorted(Path(folder).glob(f'{stem}*.zip')):
         out = Path(folder) / z.stem
@@ -103,11 +133,14 @@ def shapefile_rows(folder, stem):
             with zipfile.ZipFile(z) as f:
                 f.extractall(out)
     for shp in sorted(Path(folder).rglob(f'*{stem.split("_")[1]}*.shp')):
-        with shapefile.Reader(str(shp), encoding='latin-1') as r:
+        prj, cpg = shp.with_suffix('.prj'), shp.with_suffix('.cpg')
+        deg = to_degrees(prj.read_text(encoding='latin-1') if prj.exists() else '')
+        enc = (cpg.read_text(encoding='ascii', errors='ignore').strip() if cpg.exists() else '') or 'latin-1'
+        with shapefile.Reader(str(shp), encoding=enc) as r:
             names = [f[0] for f in r.fields[1:]]
             for sr in r.iterShapeRecords():
                 rec = dict(zip(names, sr.record))
-                pts = sr.shape.points
+                pts = [deg(p[0], p[1]) for p in sr.shape.points]
                 if not pts:
                     continue
                 if sr.shape.shapeType in (1, 11, 21):
@@ -119,6 +152,22 @@ def shapefile_rows(folder, stem):
                     _, x, y = pin(big)
                     yield rec, x, y, rings
         return
+
+
+DAM_STANDS = {'explotación', 'puesta en carga', 'fuera de servicio', 'construcción', 'aterrada'}   # FASE of a dam that is there
+SMALL_WORDS = {'de', 'del', 'la', 'las', 'los', 'el', 'y', 'e', 'o', 'u', 'a', 'al', 'en', 'por', 'con', 'da', 'do', 'das', 'dos',
+               'les', 'els'}
+
+
+def tidy_name(name):
+    """The inventory's 'SIBERIA, LA' as 'La Siberia' and 'ALGERRI-BALAGUER, CANAL' as 'Canal Algerri-Balaguer'."""
+    name = ' '.join(name.split())
+    head, sep, tail = name.rpartition(', ')
+    if sep and head and 0 < len(tail.split()) <= 2:
+        name = f'{tail} {head}'
+    if name.isupper():
+        name = ' '.join(w if i and w in SMALL_WORDS else w.title() for i, w in enumerate(name.lower().split(' ')))
+    return name
 
 
 def field(rec, *names):
@@ -203,25 +252,42 @@ def main():
         print(folder.name, len(rows), round(time.time() - t0), flush=True)
     n_miteco = 0
     if a.miteco and any(Path(a.miteco).glob('egis_presa*')):
-        official = []
+        def cell(lat, lon):
+            return round(lat / 0.01), round(lon / 0.013)
+
+        def close(lat, lon, grid):
+            """Rows of grid within about 1 km: 0.01° of latitude and 0.013° of longitude."""
+            cy, cx = cell(lat, lon)
+            return [r for dy in (-1, 0, 1) for dx in (-1, 0, 1) for r in grid.get((cy + dy, cx + dx), ())
+                    if abs(r[3] - lat) < 0.01 and abs(r[4] - lon) < 0.013]
+        osm_dams = {}
+        for r in rows:
+            if r[1] == 'dam':
+                osm_dams.setdefault(cell(r[3], r[4]), []).append(r)
+        official, left_out = [], 0
         for rec, lon, lat, _ in shapefile_rows(a.miteco, 'egis_presa'):
-            name = field(rec, 'NOMBRE', 'NOM_PRESA', 'DENOMINACI') or ''
+            phase = (field(rec, 'FASE') or '').lower()
+            if (phase and phase not in DAM_STANDS) or (not phase and not close(lat, lon, osm_dams)):
+                left_out += 1
+                continue
+            name = tidy_name(field(rec, 'NOMBRE', 'NOM_PRESA', 'DENOMINACI') or '')
+            town, community = near(lat, lon)
             detail = {k: v for k, v in {
-                'owner': field(rec, 'TITULAR'), 'river': field(rec, 'CAUCE', 'RIO'), 'purpose': field(rec, 'USO', 'USOS'),
+                'owner': field(rec, 'TITULAR'), 'river': tidy_name(field(rec, 'CAUCE', 'RIO') or ''),
+                'purpose': field(rec, 'USO', 'USOS'),
                 'dam_type': field(rec, 'TIPO', 'TIPOLOGIA'), 'category': field(rec, 'CATEGORIA', 'CATEG'),
                 'height_m': field(rec, 'ALT_CIMIEN', 'ALTURA'), 'capacity_hm3': field(rec, 'NMN_CAPAC', 'CAPACIDAD'),
-                'province': field(rec, 'PROVINCIA'), 'region': field(rec, 'CCAA') or near(lat, lon)[1],
-                'near': near(lat, lon)[0]}.items() if v not in (None, '')}
-            official.append((f'miteco:{field(rec, "CODIGO", "COD_PRESA", "ID") or len(official)}', 'dam', name.title() if name.isupper() else name,
+                'province': field(rec, 'PROVINCIA'), 'region': community or field(rec, 'CCAA'),
+                'near': town}.items() if v not in (None, '')}
+            official.append((f'miteco:{field(rec, "CODIGO", "COD_PRESA", "ID") or len(official)}', 'dam', name,
                              lat, lon, detail, 'MITECO, Inventario de Presas y Embalses'))
         # an OSM dam within 1 km of an inventory dam is the same dam
-        keep = []
-        for r in rows:
-            if r[1] == 'dam' and any(abs(r[3] - o[3]) < 0.01 and abs(r[4] - o[4]) < 0.013 for o in official):
-                continue
-            keep.append(r)
-        rows = keep + official
+        official_grid = {}
+        for o in official:
+            official_grid.setdefault(cell(o[3], o[4]), []).append(o)
+        rows = [r for r in rows if not (r[1] == 'dam' and close(r[3], r[4], official_grid))] + official
         n_miteco = len(official)
+        print('MITECO dams:', n_miteco, 'kept,', left_out, 'left out (projects, under a reservoir, or no phase and no OSM dam)', flush=True)
     nid = (db.execute('SELECT max(id) FROM resource').fetchone()[0] or 0) + 1
     counts = {}
     for source_id, kind, name, lat, lon, detail, source in rows:

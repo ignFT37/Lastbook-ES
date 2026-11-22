@@ -2,9 +2,11 @@
 Nothing here runs at startup or on a timer, and nothing is downloaded, installed or started: the check only says whether a newer
 version is on the website.
 
-  - One small GET of METADATA through engine/setup/download.py, the one way out (HTTPS, no proxy). Only https://downloads.lastbook.org
-    on port 443 is accepted, also after a redirect: not the bucket's r2.dev address, not Hugging Face.
-  - METADATA (app-v1.json at the bucket root) is display information only: {"version": 1, "mac": {"version", "min_os"}, "windows": {...}}.
+  - One small GET of METADATA through engine/setup/download.py, the one way out (HTTPS, no proxy). Only HOSTS on port 443 are
+    accepted, also after a redirect: not the official site, not Hugging Face.
+  - METADATA (app-v1.json, an asset of each release) is display information only: {"version": 1, "mac": {"version", "min_os"}, "windows": {...}}.
+  - Lastbook ES: METADATA is in this fork's own latest release, not on the official site, whose versions are the official app's.
+    github.com redirects release downloads to release-assets.githubusercontent.com (objects.githubusercontent.com before 2025).
     Other fields (url, size, sha256, notes) may be there for later; they are not read.
   - Later, with Developer ID and Authenticode signing: signed metadata (an Ed25519 key in the app) and an in-app install. Not before.
 
@@ -23,11 +25,11 @@ from pathlib import Path
 
 from engine.setup import download
 
-METADATA = 'https://downloads.lastbook.org/app-v1.json'
-HOST = 'downloads.lastbook.org'
+METADATA = 'https://github.com/ignFT37/Lastbook-ES/releases/latest/download/app-v1.json'
+HOSTS = frozenset({'github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'})
 VER = re.compile(r'^\d{1,6}(\.\d{1,6}){0,3}$')    # Windows builds have 5 digits (10.0.26200)
 MAX_BODY = 4096
-WEBSITE = 'lastbook.org'
+WEBSITE = 'github.com/ignFT37/Lastbook-ES/releases'
 
 OFFLINE = 'Lastbook could not reach the internet. Everything else in Lastbook still works without it; try again when you are online.'
 
@@ -133,12 +135,12 @@ def _has_no_entry(data, key):
 
 
 class Updater:
-    """allowed and context are for tests (a local HTTPS server); the product passes neither and reaches only HOST on port 443."""
+    """allowed and context are for tests (a local HTTPS server); the product passes neither and reaches only HOSTS on port 443."""
 
     def __init__(self, url=METADATA, allowed=None, context=None, key=None, version=None):
         self.url, self.context = url, context
         self.product = allowed is None
-        self.allowed = {HOST} if allowed is None else allowed
+        self.allowed = set(HOSTS) if allowed is None else allowed
         self.key = key or platform_key()
         self.version = version or app_version()
         self.lock = threading.Lock()
@@ -187,7 +189,7 @@ class Updater:
         except (OSError, ValueError, download.http.client.HTTPException):   # names through download.py: no network module here
             raise download.Failed('offline', OFFLINE)
         try:
-            if self.product and urllib.parse.urlsplit(final).port not in (None, 443):     # a redirect on HOST to another port
+            if self.product and urllib.parse.urlsplit(final).port not in (None, 443):     # a redirect on HOSTS to another port
                 return 0, b''
             data = r.read(MAX_BODY + 1) if r.status == 200 else b''
             return r.status, data

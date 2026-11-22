@@ -49,7 +49,8 @@ class UpdateTest(unittest.TestCase):
     def test_available(self):
         self.meta(url='https://evil.example/x.dmg', sha256='0' * 64, size=1)    # anything else in the file is not read
         s = self.check()
-        self.assertEqual((s['state'], s['version'], s['current'], s['website']), ('available', '1.2.0', '1.1.2', 'lastbook.org'))
+        self.assertEqual((s['state'], s['version'], s['current'], s['website']),
+                         ('available', '1.2.0', '1.1.2', 'github.com/ignFT37/Lastbook-ES/releases'))    # Lastbook ES: its own releases
         self.assertEqual(set(s), {'state', 'version', 'current', 'website'})
 
     def test_up_to_date(self):
@@ -106,11 +107,13 @@ class UpdateTest(unittest.TestCase):
         self.assertEqual(update._ver('10.0.26200'), (10, 0, 26200))     # five-digit Windows builds must compare
         self.assertGreater(update._ver('10.0.26200'), update._ver('10.0'))
 
-    def test_product_reaches_only_downloads_lastbook_org(self):
+    def test_product_reaches_only_this_forks_releases(self):
+        """Lastbook ES: the fork's latest release on GitHub, never the official site, whose versions are the official app's."""
         u = update.Updater(key='mac', version='1.0.0')
-        self.assertEqual((u.allowed, u.url), ({'downloads.lastbook.org'}, 'https://downloads.lastbook.org/app-v1.json'))
-        for other in ('https://pub-28c3cc06eb774c5cac057e6c9343efbd.r2.dev/app-v1.json', 'https://huggingface.co/app-v1.json',
-                      'https://downloads.lastbook.org:8443/app-v1.json'):
+        self.assertEqual((u.allowed, u.url), ({'github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'},
+                                              'https://github.com/ignFT37/Lastbook-ES/releases/latest/download/app-v1.json'))
+        for other in ('https://downloads.lastbook.org/app-v1.json', 'https://huggingface.co/app-v1.json',
+                      'https://github.com:8443/ignFT37/Lastbook-ES/releases/latest/download/app-v1.json'):
             u = update.Updater(key='mac', version='1.0.0')
             u.url = other
             u.check()
